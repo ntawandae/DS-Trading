@@ -1,0 +1,115 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard — Duoshao Admin{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Dashboard</h1>
+  <span class="user-chip">{{ recent_sales|length }} recent sales</span>
+</div>
+
+{% if current_user.is_finance %}
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">Total Revenue (Billed)</div>
+    <div class="value">${{ "%.2f"|format(total_revenue) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Received</div>
+    <div class="value">${{ "%.2f"|format(total_received) }}</div>
+  </div>
+  <div class="stat-card {{ 'alert' if total_outstanding > 0 }}">
+    <div class="label">Outstanding</div>
+    <div class="value">${{ "%.2f"|format(total_outstanding) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Total Expenses</div>
+    <div class="value">${{ "%.2f"|format(total_expenses) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Stock Value (Cost)</div>
+    <div class="value">${{ "%.2f"|format(stock_value) }}</div>
+  </div>
+  <div class="stat-card {{ 'alert' if pending_payroll > 0 }}">
+    <div class="label">Pending Payroll</div>
+    <div class="value">${{ "%.2f"|format(pending_payroll) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Float / Cash Balance</div>
+    <div class="value">${{ "%.2f"|format(float_balance) }}</div>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <a href="{{ url_for('admin.reports') }}" class="btn btn-outline btn-sm">View Full Reports →</a>
+</div>
+{% else %}
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">New Sourcing Requests</div>
+    <div class="value">{{ new_requests|length }}</div>
+  </div>
+  <div class="stat-card {{ 'alert' if low_stock|length > 0 }}">
+    <div class="label">Low Stock Items</div>
+    <div class="value">{{ low_stock|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Recent Sales</div>
+    <div class="value">{{ recent_sales|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Float / Cash Balance</div>
+    <div class="value">${{ "%.2f"|format(float_balance) }}</div>
+  </div>
+</div>
+{% endif %}
+
+<div style="display:flex; gap:24px; flex-wrap:wrap;">
+  <div class="card-block" style="flex:1; min-width:320px;">
+    <h3 style="margin-bottom:14px;">New Sourcing Requests</h3>
+    {% if new_requests %}
+      {% for r in new_requests[:6] %}
+      <div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
+        <strong>{{ r.product_name }}</strong> <span class="muted">— {{ r.customer_name }}</span><br>
+        <span class="muted">{{ r.contact }} · {{ r.created_at.strftime('%d %b %Y') }}</span>
+      </div>
+      {% endfor %}
+      <a href="{{ url_for('admin.requests_list') }}" class="btn btn-outline btn-sm" style="margin-top:14px;">View All</a>
+    {% else %}
+      <p class="muted">No new requests.</p>
+    {% endif %}
+  </div>
+
+  <div class="card-block" style="flex:1; min-width:320px;">
+    <h3 style="margin-bottom:14px;">Low Stock Alerts</h3>
+    {% if low_stock %}
+      {% for s in low_stock[:6] %}
+      <div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
+        <strong>{{ s.name }}</strong> <span class="muted">({{ s.category }})</span><br>
+        <span class="muted">{{ s.quantity }} left — reorder at {{ s.reorder_level }}</span>
+      </div>
+      {% endfor %}
+      <a href="{{ url_for('admin.products') }}" class="btn btn-outline btn-sm" style="margin-top:14px;">Manage Products</a>
+    {% else %}
+      <p class="muted">All stock levels healthy.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section-title" style="margin-top:34px;"><span>Recent Sales</span></div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for s in recent_sales %}
+      <tr onclick="window.location='{{ url_for('admin.sale_detail', sale_id=s.id) }}'" style="cursor:pointer;">
+        <td>{{ s.date.strftime('%d %b %Y') }}</td>
+        <td>{{ s.display_customer }}</td>
+        <td>${{ "%.2f"|format(s.total) }}</td>
+        <td><span class="badge badge-{{ 'paid' if s.status == 'paid' else ('partial' if s.status == 'partially_paid' else 'pending') }}">{{ s.status|replace('_',' ') }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No sales recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

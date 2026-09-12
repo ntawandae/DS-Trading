@@ -1,0 +1,67 @@
+{% extends "account/base.html" %}
+{% block title %}My Account — Duoshao Trading{% endblock %}
+{% block content %}
+<div class="section-title"><span>Welcome, {{ customer.name if customer else current_user.full_name }}</span></div>
+
+{% if not current_user.email_verified %}
+<div class="card-block" style="background:#fdf6ec; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+  <span class="muted">Your email address isn't verified yet.</span>
+  <form method="POST" action="{{ url_for('account.resend_verification') }}">
+    <button type="submit" class="btn btn-outline btn-sm">Resend Verification Email</button>
+  </form>
+</div>
+{% endif %}
+
+<div style="display:flex; gap:24px; flex-wrap:wrap;">
+  <div class="card-block" style="flex:2; min-width:340px;">
+    <h3 style="margin-bottom:14px;">My Orders</h3>
+    {% if orders %}
+    <table class="data-table" style="box-shadow:none;">
+      <thead><tr><th>Date</th><th>Total</th><th>Balance Due</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for s in orders %}
+        <tr onclick="window.location='{{ url_for('account.order_detail', sale_id=s.id) }}'" style="cursor:pointer;">
+          <td>{{ s.date.strftime('%d %b %Y') }}</td>
+          <td>${{ "%.2f"|format(s.total) }}</td>
+          <td>${{ "%.2f"|format(s.balance_due) }}</td>
+          <td><span class="badge badge-{{ 'paid' if s.status == 'paid' else ('partial' if s.status == 'partially_paid' else 'pending') }}">{{ s.status|replace('_',' ') }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No orders yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card-block" style="flex:2; min-width:340px;">
+    <h3 style="margin-bottom:14px;">My Quotations</h3>
+    {% if quotes %}
+    <table class="data-table" style="box-shadow:none;">
+      <thead><tr><th>Quote No.</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for q in quotes %}
+        <tr onclick="window.location='{{ url_for('account.quotation_detail', quote_id=q.id) }}'" style="cursor:pointer;">
+          <td>{{ q.quote_number }}</td>
+          <td>{{ q.date.strftime('%d %b %Y') }}</td>
+          <td>${{ "%.2f"|format(q.total) }}</td>
+          <td><span class="badge badge-{{ q.status_badge_class }}">{{ q.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No quotations yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section-title" style="margin-top:36px;"><span>Catalog</span></div>
+{% set search_url = url_for('account.dashboard') %}
+{% include "_catalog_section.html" %}
+
+<div class="card-block" style="margin-top:24px; text-align:center;">
+  <h3 style="margin-bottom:10px;">Need something else sourced?</h3>
+  <a href="{{ url_for('account.sourcing_request') }}" class="btn btn-navy">Submit a Sourcing Request</a>
+</div>
+{% endblock %}

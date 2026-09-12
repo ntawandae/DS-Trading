@@ -1,0 +1,48 @@
+{% extends "public/base.html" %}
+{% block title %}Your Cart — Duoshao Trading Co., Ltd.{% endblock %}
+{% block content %}
+<div class="container" style="padding-top:40px; padding-bottom:60px;">
+  <div class="section-title"><span>Your Cart</span></div>
+
+  {% if cart_items %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Item</th><th>Price</th><th>Qty</th><th>Line Total</th><th></th></tr></thead>
+      <tbody>
+        {% for d in cart_items %}
+        <tr>
+          <td>{{ d.item.name }}{% if d.variant %}<br><span class="muted" style="font-size:12px;">{{ d.variant }}</span>{% endif %}</td>
+          <td>${{ "%.2f"|format(d.item.unit_price_usd) }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('cart.update_cart') }}" style="display:flex; gap:6px;">
+              <input type="hidden" name="line_key" value="{{ d.line_key }}">
+              <input type="number" name="qty" value="{{ d.qty }}" min="1" style="width:60px; padding:5px;">
+              <button type="submit" class="btn btn-outline btn-sm">Update</button>
+            </form>
+          </td>
+          <td>${{ "%.2f"|format(d.line_total) }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('cart.remove_from_cart') }}">
+              <input type="hidden" name="line_key" value="{{ d.line_key }}">
+              <button type="submit" class="btn btn-outline btn-sm">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr style="font-weight:bold;">
+          <td colspan="3" class="text-right">Subtotal</td>
+          <td colspan="2">${{ "%.2f"|format(subtotal) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="text-align:right; margin-top:20px;">
+    <a href="{{ url_for('cart.checkout') }}" class="btn btn-gold">Proceed to Checkout</a>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    Your cart is empty. <a href="{{ url_for('public.home') }}">Browse the catalog</a> to add something.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

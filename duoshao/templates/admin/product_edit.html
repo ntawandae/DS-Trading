@@ -1,0 +1,19 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit {{ item.name }} — Duoshao Admin{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Edit Product</h1>
+  <a href="{{ url_for('admin.products', edit_id=item.id) }}" class="btn btn-outline btn-sm">Back to Products</a>
+</div>
+
+<div class="card-block" style="max-width:760px;">
+  {% if item.image_filename %}
+  <img src="{{ url_for('static', filename='uploads/catalog/' + item.image_filename) }}" alt="{{ item.name }}" style="width:160px; height:120px; object-fit:cover; border-radius:6px; margin-bottom:18px;">
+  {% endif %}
+  <form method="POST" enctype="multipart/form-data">
+    {% set id_prefix = 'edit-standalone' %}
+    {% include "admin/_product_form_fields.html" %}
+    <button type="submit" class="btn btn-gold">Save Changes</button>
+  </form>
+</div>
+{% endblock %}
