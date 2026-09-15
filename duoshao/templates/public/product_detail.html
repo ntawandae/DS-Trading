@@ -9,7 +9,7 @@
       {% set images = item.all_image_filenames %}
       <div class="product-detail-main-img" style="width:100%; height:420px; max-height:55vh; border-radius:8px; overflow:hidden; background:#f4f3ef; box-shadow:0 1px 4px rgba(0,0,0,0.08);">
         {% if images %}
-        <img id="mainProductImage" src="{{ url_for('static', filename='uploads/catalog/' + images[0]) }}" alt="{{ item.name }}" style="width:100%; height:100%; object-fit:cover; display:block;">
+        <img id="mainProductImage" src="{{ url_for('serve_upload', filename=images[0]) }}" alt="{{ item.name }}" style="width:100%; height:100%; object-fit:cover; display:block;">
         {% else %}
         <div class="product-card-noimg" style="height:100%; min-height:280px;">No Image</div>
         {% endif %}
@@ -17,7 +17,7 @@
       {% if images|length > 1 %}
       <div class="product-gallery-thumbs">
         {% for fn in images %}
-        <img src="{{ url_for('static', filename='uploads/catalog/' + fn) }}" alt="{{ item.name }} photo {{ loop.index }}"
+        <img src="{{ url_for('serve_upload', filename=fn) }}" alt="{{ item.name }} photo {{ loop.index }}"
              class="product-gallery-thumb{{ ' active' if loop.first }}"
              style="width:60px; height:60px; object-fit:cover; border-radius:4px; cursor:pointer; border:2px solid {{ 'var(--gold)' if loop.first else 'transparent' }};"
              onclick="document.getElementById('mainProductImage').src=this.src; document.querySelectorAll('.product-gallery-thumb').forEach(function(t){t.style.borderColor='transparent'; t.classList.remove('active');}); this.classList.add('active'); this.style.borderColor='var(--gold)';">
