@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime, date, timedelta
 from calendar import monthrange
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from werkzeug.security import generate_password_hash
@@ -105,7 +105,6 @@ def update_request_status(req_id):
 
 
 # ---------- Products (single source of truth — public catalog + stock, together) ----------
-UPLOAD_FOLDER_REL = os.path.join("static", "uploads", "catalog")
 ALLOWED_IMAGE_EXT = {"png", "jpg", "jpeg", "webp"}
 
 
@@ -149,7 +148,7 @@ def _save_catalog_image(file_storage, item_id):
     if ext not in ALLOWED_IMAGE_EXT:
         return None
     filename = f"item-{item_id}.{ext}"
-    folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "catalog")
+    folder = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(folder, exist_ok=True)
     file_storage.save(os.path.join(folder, filename))
     return filename
@@ -161,7 +160,7 @@ def _save_gallery_image(file_storage, item_id):
     if ext not in ALLOWED_IMAGE_EXT:
         return None
     filename = f"item-{item_id}-{uuid.uuid4().hex[:8]}.{ext}"
-    folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "catalog")
+    folder = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(folder, exist_ok=True)
     file_storage.save(os.path.join(folder, filename))
     return filename
@@ -278,7 +277,7 @@ def products_edit(item_id):
         gallery = item.gallery_filenames
         remove_list = request.form.getlist("remove_images")
         if remove_list:
-            folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads", "catalog")
+            folder = current_app.config["UPLOAD_FOLDER"]
             for fn in remove_list:
                 try:
                     os.remove(os.path.join(folder, fn))
