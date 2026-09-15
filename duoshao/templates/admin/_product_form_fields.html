@@ -42,7 +42,7 @@
   <div style="display:flex; flex-wrap:wrap; gap:12px;">
     {% for fn in item.gallery_filenames %}
     <label style="text-align:center; font-size:11px; cursor:pointer;">
-      <img src="{{ url_for('static', filename='uploads/catalog/' + fn) }}" style="width:70px; height:70px; object-fit:cover; border-radius:4px; display:block; margin-bottom:4px;">
+      <img src="{{ url_for('serve_upload', filename=fn) }}" style="width:70px; height:70px; object-fit:cover; border-radius:4px; display:block; margin-bottom:4px;">
       <input type="checkbox" name="remove_images" value="{{ fn }}" style="width:auto;"> Remove
     </label>
     {% endfor %}
