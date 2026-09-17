@@ -124,7 +124,7 @@ def _save_catalog_image(file_storage, item_id):
     storage_path = f"catalog/{filename}"
 
     try:
-        supabase = _get_supabase_client()
+        supabase = _supabase_client()
 
         # Read the uploaded Flask file into bytes.
         file_storage.stream.seek(0)
@@ -158,7 +158,7 @@ def _save_gallery_image(file_storage, item_id):
     storage_path = f"catalog/{filename}"
 
     try:
-        supabase = _get_supabase_client()
+        supabase = _supabase_client()
 
         # Read the uploaded Flask file into bytes.
         file_storage.stream.seek(0)
