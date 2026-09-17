@@ -40,8 +40,10 @@
 
     {% if edit_item %}
     {% if edit_item.image_filename %}
-    <img src="{{ url_for('static', filename='uploads/catalog/' + edit_item.image_filename) }}" alt="{{ edit_item.name }}" style="width:120px; height:90px; object-fit:cover; border-radius:6px; margin-bottom:16px;">
-    {% endif %}
+<img src="{{ product_image_url(edit_item.image_filename) }}"
+     alt="{{ edit_item.name }}"
+     style="width:120px; height:90px; object-fit:cover; border-radius:6px; margin-bottom:16px;">
+{% endif %}
     <form method="POST" action="{{ url_for('admin.products_edit', item_id=edit_item.id) }}" enctype="multipart/form-data">
       {% set item = edit_item %}
       {% set id_prefix = 'edit' %}
