@@ -2415,6 +2415,12 @@ def quotation_status(quote_id):
         and quote.customer
         and quote.customer.user_account
     ):
+        valid_until_str = (
+            quote.valid_until.strftime('%d %B %Y')
+            if quote.valid_until
+            else 'further notice'
+        )
+
         notify_client(
             quote.customer.user_account,
 
@@ -2432,19 +2438,13 @@ def quotation_status(quote_id):
             ),
 
             email_body=(
-                f"Hi "
-                f"{quote.customer.user_account.full_name},\n\n"
-
+                f"Hi {quote.customer.user_account.full_name},\n\n"
                 f"A quotation is ready for you to review: "
                 f"{quote.quote_number}, total "
                 f"${quote.total:.2f} "
-                f"(valid until "
-                f"{quote.valid_until.strftime('%d %B %Y') "
-                f"if quote.valid_until else 'further notice'}).\n\n"
-
+                f"(valid until {valid_until_str}).\n\n"
                 f"View and respond: "
                 f"{url_for('account.quotation_detail', quote_id=quote.id, _external=True)}\n\n"
-
                 f"Duoshao Trading Co., Ltd."
             ),
         )
