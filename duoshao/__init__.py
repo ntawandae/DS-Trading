@@ -53,18 +53,29 @@ def create_app():
     app.config["STRIPE_SECRET_KEY"] = os.environ.get("STRIPE_SECRET_KEY")
     app.config["STRIPE_PUBLISHABLE_KEY"] = os.environ.get("STRIPE_PUBLISHABLE_KEY")
 
-    # Outbound email — opt-in via environment variables
-    app.config["MAIL_SERVER"] = os.environ.get("MAIL_SERVER")
-    app.config["MAIL_PORT"] = os.environ.get("MAIL_PORT", 587)
-    app.config["MAIL_USE_TLS"] = (
-        os.environ.get("MAIL_USE_TLS", "true").lower() != "false"
-    )
-    app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
-    app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
-    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
-    app.config["STAFF_NOTIFICATION_EMAIL"] = os.environ.get(
-        "STAFF_NOTIFICATION_EMAIL"
-    )
+# Outbound email — Alibaba DirectMail HTTP API
+app.config["ALIBABA_ACCESS_KEY_ID"] = os.environ.get(
+    "ALIBABA_ACCESS_KEY_ID"
+)
+app.config["ALIBABA_ACCESS_KEY_SECRET"] = os.environ.get(
+    "ALIBABA_ACCESS_KEY_SECRET"
+)
+app.config["ALIBABA_REGION_ID"] = os.environ.get(
+    "ALIBABA_REGION_ID", "cn-hangzhou"
+)
+app.config["ALIBABA_DM_ACCOUNT_NAME"] = os.environ.get(
+    "ALIBABA_DM_ACCOUNT_NAME"
+)
+app.config["ALIBABA_DM_FROM_ALIAS"] = os.environ.get(
+    "ALIBABA_DM_FROM_ALIAS", "Duoshao Trading"
+)
+app.config["ALIBABA_DM_REPLY_TO"] = os.environ.get(
+    "ALIBABA_DM_REPLY_TO", "false"
+)
+
+app.config["STAFF_NOTIFICATION_EMAIL"] = os.environ.get(
+    "STAFF_NOTIFICATION_EMAIL"
+)
 
     db.init_app(app)
     login_manager.init_app(app)
