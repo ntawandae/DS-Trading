@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_login import LoginManager
+from supabase import create_client
 from .models import db, User, Notification
 
 # Load environment variables from a .env file in the project root, if present.
@@ -10,6 +11,8 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
+
+SUPABASE_BUCKET = "product-images"
 
 
 def create_app():
@@ -36,6 +39,12 @@ def create_app():
         app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + sqlite_path
 
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    # Supabase Storage
+    # Used for permanent product-image storage on Render.
+    app.config["SUPABASE_URL"] = os.environ.get("SUPABASE_URL")
+    app.config["SUPABASE_SERVICE_KEY"] = os.environ.get("SUPABASE_SERVICE_KEY")
+    app.config["SUPABASE_BUCKET"] = SUPABASE_BUCKET
 
     # Payment gateways — opt-in via environment variables
     app.config["PAYPAL_CLIENT_ID"] = os.environ.get("PAYPAL_CLIENT_ID")
@@ -97,6 +106,59 @@ def create_app():
             return {"unread_notifications": count}
 
         return {"unread_notifications": 0}
+
+    # ------------------------------------------------------------------
+    # Supabase Storage helpers
+    # ------------------------------------------------------------------
+
+    def get_supabase_client():
+        """
+        Create and cache the Supabase client for this Flask application.
+        The service key is server-side only and must never be exposed
+        to browser/client-side code.
+        """
+        client = app.extensions.get("supabase")
+
+        if client is None:
+            supabase_url = app.config.get("SUPABASE_URL")
+            supabase_key = app.config.get("SUPABASE_SERVICE_KEY")
+
+            if not supabase_url or not supabase_key:
+                raise RuntimeError(
+                    "SUPABASE_URL and SUPABASE_SERVICE_KEY must be configured."
+                )
+
+            client = create_client(supabase_url, supabase_key)
+            app.extensions["supabase"] = client
+
+        return client
+
+    @app.template_global()
+    def product_image_url(path):
+        """
+        Convert a stored Supabase Storage path into its public URL.
+
+        The database stores paths such as:
+            catalog/item-1.jpg
+
+        This function converts them into the public Supabase Storage URL.
+
+        It also supports existing full URLs, which makes the transition
+        safer if any database records already contain complete URLs.
+        """
+        if not path:
+            return ""
+
+        # If the database already contains a complete URL,
+        # return it unchanged.
+        if path.startswith("http://") or path.startswith("https://"):
+            return path
+
+        client = get_supabase_client()
+
+        return client.storage.from_(
+            app.config["SUPABASE_BUCKET"]
+        ).get_public_url(path)
 
     @app.template_global()
     def asset_version(static_relpath):
