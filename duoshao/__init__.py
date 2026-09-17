@@ -16,26 +16,46 @@ def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "..", "instance", "duoshao.db")
+
+    # Database
+    # If DATABASE_URL is provided (e.g. Supabase PostgreSQL), use it.
+    # Otherwise, fall back to SQLite for local development.
+    database_url = os.environ.get("DATABASE_URL")
+
+    if database_url:
+        # Some providers use the old postgres:// prefix.
+        # SQLAlchemy expects postgresql:// instead.
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+        app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    else:
+        # Local development: use the existing SQLite database.
+        sqlite_path = os.path.join(basedir, "..", "instance", "duoshao.db")
+        os.makedirs(os.path.dirname(sqlite_path), exist_ok=True)
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + sqlite_path
+
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # Payment gateways — opt-in via environment variables (see duoshao/payments.py docstring)
+    # Payment gateways — opt-in via environment variables
     app.config["PAYPAL_CLIENT_ID"] = os.environ.get("PAYPAL_CLIENT_ID")
     app.config["PAYPAL_SECRET"] = os.environ.get("PAYPAL_SECRET")
     app.config["PAYPAL_MODE"] = os.environ.get("PAYPAL_MODE", "sandbox")
     app.config["STRIPE_SECRET_KEY"] = os.environ.get("STRIPE_SECRET_KEY")
     app.config["STRIPE_PUBLISHABLE_KEY"] = os.environ.get("STRIPE_PUBLISHABLE_KEY")
 
-    # Outbound email — opt-in via environment variables (see duoshao/email_utils.py docstring)
+    # Outbound email — opt-in via environment variables
     app.config["MAIL_SERVER"] = os.environ.get("MAIL_SERVER")
     app.config["MAIL_PORT"] = os.environ.get("MAIL_PORT", 587)
-    app.config["MAIL_USE_TLS"] = os.environ.get("MAIL_USE_TLS", "true").lower() != "false"
+    app.config["MAIL_USE_TLS"] = (
+        os.environ.get("MAIL_USE_TLS", "true").lower() != "false"
+    )
     app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
     app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
     app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
-    app.config["STAFF_NOTIFICATION_EMAIL"] = os.environ.get("STAFF_NOTIFICATION_EMAIL")
-
-    os.makedirs(os.path.join(basedir, "..", "instance"), exist_ok=True)
+    app.config["STAFF_NOTIFICATION_EMAIL"] = os.environ.get(
+        "STAFF_NOTIFICATION_EMAIL"
+    )
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -56,6 +76,11 @@ def create_app():
     app.register_blueprint(account_bp, url_prefix="/account")
     app.register_blueprint(cart_bp)
 
+    # Health check endpoint for Render/UptimeRobot
+    @app.route("/health")
+    def health():
+        return "OK", 200
+
     @app.context_processor
     def inject_cart_count():
         return {"cart_count": cart_count()}
@@ -63,23 +88,28 @@ def create_app():
     @app.context_processor
     def inject_notification_count():
         from flask_login import current_user
+
         if current_user.is_authenticated and current_user.is_client:
-            count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+            count = Notification.query.filter_by(
+                user_id=current_user.id,
+                is_read=False
+            ).count()
             return {"unread_notifications": count}
+
         return {"unread_notifications": 0}
 
     @app.template_global()
     def asset_version(static_relpath):
-        """Returns the file's last-modified time as a cache-busting query string value.
-        Used as {{ url_for('static', filename='css/style.css') }}?v={{ asset_version('css/style.css') }}
-        so browsers fetch the new file immediately after a deploy instead of serving a
-        stale cached copy — no manual version number to remember to bump."""
+        """Returns the file's last-modified time as a cache-busting query string value."""
         full_path = os.path.join(app.static_folder, static_relpath)
+
         try:
             return int(os.path.getmtime(full_path))
         except OSError:
             return 0
 
+    # Create database tables automatically if they don't already exist.
+    # With DATABASE_URL set on Render, this creates them in Supabase PostgreSQL.
     with app.app_context():
         db.create_all()
 
