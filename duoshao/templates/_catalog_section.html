@@ -24,7 +24,7 @@
   <a href="{{ url_for('public.product_detail', item_id=item.id) }}" class="product-card" id="{{ item.category|replace(' ', '-') }}">
     <div class="product-card-img">
       {% if item.image_filename %}
-      <img src="{{ url_for('static', filename='uploads/catalog/' + item.image_filename) }}" alt="{{ item.name }}" loading="lazy">
+      <img src="{{ product_image_url(item.image_filename) }}" alt="{{ item.name }}" loading="lazy">
       {% else %}
       <div class="product-card-noimg">No Image</div>
       {% endif %}
