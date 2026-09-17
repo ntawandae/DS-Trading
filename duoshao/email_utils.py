@@ -26,6 +26,22 @@ from alibabacloud_dm20151123.models import SingleSendMailRequest
 
 logger = logging.getLogger("duoshao.mail")
 
+# DirectMail's public endpoints don't follow the usual dm.<region>.aliyuncs.com
+# pattern for every region — cn-hangzhou (the default/home region) is served at
+# the bare dm.aliyuncs.com host. See:
+# https://www.alibabacloud.com/help/en/direct-mail/api-endpoints
+_DM_ENDPOINTS = {
+    "cn-hangzhou": "dm.aliyuncs.com",
+    "ap-southeast-1": "dm.ap-southeast-1.aliyuncs.com",
+    "ap-southeast-2": "dm.ap-southeast-2.aliyuncs.com",
+    "us-east-1": "dm.us-east-1.aliyuncs.com",
+    "eu-central-1": "dm.eu-central-1.aliyuncs.com",
+}
+
+
+def _dm_endpoint(region):
+    return _DM_ENDPOINTS.get(region, f"dm.{region}.aliyuncs.com")
+
 
 def mail_enabled():
     cfg = current_app.config
@@ -54,7 +70,7 @@ def _send_sync(
             access_key_id=access_key_id,
             access_key_secret=access_key_secret,
             region_id=region,
-            endpoint=f"dm.{region}.aliyuncs.com",
+            endpoint=_dm_endpoint(region),
         )
         client = DmClient(config)
 
