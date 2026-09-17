@@ -18,9 +18,10 @@ import logging
 import threading
 
 from flask import current_app
-from aliyunsdkcore.client import AcsClient
-from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
-from aliyunsdkdm.request.v20151123.SingleSendMailRequest import SingleSendMailRequest
+from Tea.exceptions import TeaException
+from alibabacloud_tea_openapi.models import Config
+from alibabacloud_dm20151123.client import Client as DmClient
+from alibabacloud_dm20151123.models import SingleSendMailRequest
 
 
 logger = logging.getLogger("duoshao.mail")
@@ -49,37 +50,34 @@ def _send_sync(
     text_body,
 ):
     try:
-        client = AcsClient(
-            access_key_id,
-            access_key_secret,
-            region,
+        config = Config(
+            access_key_id=access_key_id,
+            access_key_secret=access_key_secret,
+            region_id=region,
+            endpoint=f"dm.{region}.aliyuncs.com",
+        )
+        client = DmClient(config)
+
+        request = SingleSendMailRequest(
+            account_name=account_name,
+            # 1 = use the verified sender address
+            address_type=1,
+            # This field is a real bool in the new SDK, not "true"/"false"
+            reply_to_address=reply_to_flag,
+            to_address=to_address,
+            subject=subject,
         )
 
-        request = SingleSendMailRequest()
-        request.set_accept_format("json")
-
-        # Verified DirectMail sender
-        request.set_AccountName(account_name)
-
-        # 1 = use the verified sender address
-        request.set_AddressType(1)
-
-        # "true" or "false"
-        request.set_ReplyToAddress(reply_to_flag)
-
-        request.set_ToAddress(to_address)
-        request.set_Subject(subject)
-
         if from_alias:
-            request.set_FromAlias(from_alias)
+            request.from_alias = from_alias
 
         # DirectMail requires a body
         if html_body:
-            request.set_HtmlBody(html_body)
+            request.html_body = html_body
         elif text_body:
-            request.set_TextBody(text_body)
+            request.text_body = text_body
 
-        client.do_action_with_exception(request)
+        client.single_send_mail(request)
 
         logger.info(
             "Email sent via Alibaba DirectMail to %s: %s",
@@ -87,7 +85,7 @@ def _send_sync(
             subject,
         )
 
-    except (ClientException, ServerException):
+    except TeaException:
         logger.exception(
             "Failed to send email to %s via Alibaba DirectMail",
             to_address,
@@ -137,17 +135,13 @@ def _dispatch(
         "ALIBABA_DM_FROM_ALIAS"
     )
 
-    reply_to_flag = (
-        "true"
-        if str(
-            cfg.get(
-                "ALIBABA_DM_REPLY_TO",
-                "false",
-            )
-        ).lower()
-        == "true"
-        else "false"
-    )
+    # This field is a real bool in the new SDK
+    reply_to_flag = str(
+        cfg.get(
+            "ALIBABA_DM_REPLY_TO",
+            "false",
+        )
+    ).lower() == "true"
 
     thread = threading.Thread(
         target=_send_sync,
