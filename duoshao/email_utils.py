@@ -1,92 +1,201 @@
 """
 Outbound email — used for signup verification and password reset links.
 
-Opt-in via environment variables, same pattern as the payment gateways:
+Sent via Alibaba DirectMail's HTTP API, not SMTP.
 
-    export MAIL_SERVER="smtp.gmail.com"      # or your provider's SMTP host
-    export MAIL_PORT="587"
-    export MAIL_USE_TLS="true"
-    export MAIL_USERNAME="you@yourdomain.com"
-    export MAIL_PASSWORD="your-smtp-password-or-app-password"
-    export MAIL_DEFAULT_SENDER="Duoshao Trading <you@yourdomain.com>"
+Required environment variables:
+    ALIBABA_ACCESS_KEY_ID="..."
+    ALIBABA_ACCESS_KEY_SECRET="..."
+    ALIBABA_REGION_ID="cn-hangzhou"
+    ALIBABA_DM_ACCOUNT_NAME="info@duoshaotrading.com"
+    ALIBABA_DM_FROM_ALIAS="Duoshao Trading"
+    ALIBABA_DM_REPLY_TO="false"
 
-If these aren't set, emails are simply logged to the console instead of sent —
-the app keeps working (accounts still get created, links still get generated),
-you just won't actually receive the email until SMTP is configured.
+If these aren't configured, emails are logged instead of sent.
 """
-import smtplib
+
 import logging
 import threading
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+
 from flask import current_app
+from aliyunsdkcore.client import AcsClient
+from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
+from aliyunsdkdm.request.v20151123.SingleSendMailRequest import SingleSendMailRequest
+
 
 logger = logging.getLogger("duoshao.mail")
 
 
 def mail_enabled():
-    return bool(current_app.config.get("MAIL_SERVER") and current_app.config.get("MAIL_USERNAME"))
+    cfg = current_app.config
+
+    return bool(
+        cfg.get("ALIBABA_ACCESS_KEY_ID")
+        and cfg.get("ALIBABA_ACCESS_KEY_SECRET")
+        and cfg.get("ALIBABA_DM_ACCOUNT_NAME")
+    )
 
 
-def _send_sync(server_host, port, use_tls, use_ssl, username, password, sender, to_address, msg):
+def _send_sync(
+    access_key_id,
+    access_key_secret,
+    region,
+    account_name,
+    from_alias,
+    reply_to_flag,
+    to_address,
+    subject,
+    html_body,
+    text_body,
+):
     try:
-        if use_ssl:
-            # Implicit SSL (e.g. Aliyun's smtp.qiye.aliyun.com:465) — the connection is
-            # encrypted from the start, no STARTTLS handshake.
-            server = smtplib.SMTP_SSL(server_host, port, timeout=10)
-        else:
-            server = smtplib.SMTP(server_host, port, timeout=10)
-            if use_tls:
-                server.starttls()
-        server.login(username, password)
-        server.sendmail(sender or username, [to_address], msg.as_string())
-        server.quit()
-        logger.info("Email sent to %s: %s", to_address, msg["Subject"])
+        client = AcsClient(
+            access_key_id,
+            access_key_secret,
+            region,
+        )
+
+        request = SingleSendMailRequest()
+        request.set_accept_format("json")
+
+        # Verified DirectMail sender
+        request.set_AccountName(account_name)
+
+        # 1 = use the verified sender address
+        request.set_AddressType(1)
+
+        # "true" or "false"
+        request.set_ReplyToAddress(reply_to_flag)
+
+        request.set_ToAddress(to_address)
+        request.set_Subject(subject)
+
+        if from_alias:
+            request.set_FromAlias(from_alias)
+
+        # DirectMail requires a body
+        if html_body:
+            request.set_HtmlBody(html_body)
+        elif text_body:
+            request.set_TextBody(text_body)
+
+        client.do_action_with_exception(request)
+
+        logger.info(
+            "Email sent via Alibaba DirectMail to %s: %s",
+            to_address,
+            subject,
+        )
+
+    except (ClientException, ServerException):
+        logger.exception(
+            "Failed to send email to %s via Alibaba DirectMail",
+            to_address,
+        )
+
     except Exception:
-        logger.exception("Failed to send email to %s", to_address)
+        logger.exception(
+            "Unexpected error while sending email to %s",
+            to_address,
+        )
 
 
-def _dispatch(to_address, msg):
-    """Shared plumbing for both send_email and send_html_email: checks config, captures it
-    now (current_app won't exist inside the background thread), and fires the send in the
-    background so a slow/unreachable mail server never delays the page the user is waiting on."""
+def _dispatch(
+    to_address,
+    subject,
+    html_body=None,
+    text_body=None,
+):
+    """
+    Shared sending logic for plain-text and HTML emails.
+
+    The actual API call runs in a background thread so a slow
+    DirectMail request does not hold up the user's page request.
+    """
+
+    cfg = current_app.config
+
     if not mail_enabled():
-        logger.warning("MAIL NOT CONFIGURED — would have sent to %s:\nSubject: %s", to_address, msg["Subject"])
+        logger.warning(
+            "MAIL NOT CONFIGURED — would have sent to %s:\nSubject: %s",
+            to_address,
+            subject,
+        )
         return False
 
-    server_host = current_app.config["MAIL_SERVER"]
-    port = int(current_app.config.get("MAIL_PORT", 587))
-    # Port 465 is always implicit SSL by convention, so default MAIL_USE_SSL to true there
-    # even if it isn't set explicitly.
-    use_ssl = current_app.config.get("MAIL_USE_SSL", port == 465)
-    use_tls = current_app.config.get("MAIL_USE_TLS", not use_ssl)
-    username = current_app.config["MAIL_USERNAME"]
-    password = current_app.config["MAIL_PASSWORD"]
-    sender = current_app.config.get("MAIL_DEFAULT_SENDER")
-    msg["From"] = sender or username
-    msg["To"] = to_address
+    access_key_id = cfg["ALIBABA_ACCESS_KEY_ID"]
+    access_key_secret = cfg["ALIBABA_ACCESS_KEY_SECRET"]
+
+    region = cfg.get(
+        "ALIBABA_REGION_ID",
+        "cn-hangzhou",
+    )
+
+    account_name = cfg["ALIBABA_DM_ACCOUNT_NAME"]
+
+    from_alias = cfg.get(
+        "ALIBABA_DM_FROM_ALIAS"
+    )
+
+    reply_to_flag = (
+        "true"
+        if str(
+            cfg.get(
+                "ALIBABA_DM_REPLY_TO",
+                "false",
+            )
+        ).lower()
+        == "true"
+        else "false"
+    )
 
     thread = threading.Thread(
         target=_send_sync,
-        args=(server_host, port, use_tls, use_ssl, username, password, sender, to_address, msg),
+        args=(
+            access_key_id,
+            access_key_secret,
+            region,
+            account_name,
+            from_alias,
+            reply_to_flag,
+            to_address,
+            subject,
+            html_body,
+            text_body,
+        ),
         daemon=True,
     )
+
     thread.start()
+
     return True
 
 
-def send_email(to_address, subject, body_text):
-    """Plain-text email — fire-and-forget by design; check the logs to confirm delivery attempts."""
-    msg = MIMEText(body_text)
-    msg["Subject"] = subject
-    return _dispatch(to_address, msg)
+def send_email(
+    to_address,
+    subject,
+    body_text,
+):
+    """Send a plain-text email through Alibaba DirectMail."""
+
+    return _dispatch(
+        to_address,
+        subject,
+        text_body=body_text,
+    )
 
 
-def send_html_email(to_address, subject, html_body, text_fallback=None):
-    """HTML email (e.g. a formatted quotation or receipt), with a plain-text fallback part for
-    email clients that don't render HTML. Same fire-and-forget behavior as send_email."""
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg.attach(MIMEText(text_fallback or "This email contains an HTML document — please view it in an HTML-capable email client.", "plain"))
-    msg.attach(MIMEText(html_body, "html"))
-    return _dispatch(to_address, msg)
+def send_html_email(
+    to_address,
+    subject,
+    html_body,
+    text_fallback=None,
+):
+    """Send an HTML email through Alibaba DirectMail."""
+
+    return _dispatch(
+        to_address,
+        subject,
+        html_body=html_body,
+        text_body=text_fallback,
+    )
