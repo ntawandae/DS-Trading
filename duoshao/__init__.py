@@ -14,59 +14,173 @@ login_manager.login_view = "auth.login"
 
 def create_app():
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+
+    app.config["SECRET_KEY"] = os.environ.get(
+        "SECRET_KEY",
+        "dev-secret-change-me"
+    )
+
     basedir = os.path.abspath(os.path.dirname(__file__))
 
-    # Database — defaults to the local SQLite file used in development. On a host with an
-    # ephemeral filesystem (e.g. Render), set SQLITE_PATH to a path on a persistent disk
-    # (e.g. /var/data/duoshao.db) so the database survives redeploys/restarts. If you ever
-    # switch to Postgres instead, set DATABASE_URL and it takes priority over SQLITE_PATH.
+    # ---------------------------------------------------------
+    # Health check endpoint
+    # Used by uptime monitoring services to check that the
+    # application is running.
+    # ---------------------------------------------------------
+    @app.route("/health")
+    def health():
+        return "OK", 200
+
+    # ---------------------------------------------------------
+    # Database
+    # ---------------------------------------------------------
+    # DATABASE_URL takes priority when running on Render/Supabase.
+    #
+    # If DATABASE_URL is not set, the application falls back
+    # to the local SQLite database for development.
     database_url = os.environ.get("DATABASE_URL")
+
     if database_url:
-        if database_url.startswith("postgres://"):  # some providers hand this back; SQLAlchemy wants postgresql://
-            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        # Some hosting providers return postgres://
+        # while SQLAlchemy expects postgresql://
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace(
+                "postgres://",
+                "postgresql://",
+                1
+            )
+
         app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
     else:
-        sqlite_path = os.environ.get("SQLITE_PATH", os.path.join(basedir, "..", "instance", "duoshao.db"))
-        os.makedirs(os.path.dirname(sqlite_path), exist_ok=True)
-        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + sqlite_path
+        sqlite_path = os.environ.get(
+            "SQLITE_PATH",
+            os.path.join(
+                basedir,
+                "..",
+                "instance",
+                "duoshao.db"
+            )
+        )
+
+        os.makedirs(
+            os.path.dirname(sqlite_path),
+            exist_ok=True
+        )
+
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            "sqlite:///" + sqlite_path
+        )
+
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # Uploaded product photos — same idea as the database above. Defaults to a folder inside
-    # the app (fine for local dev), but set UPLOAD_FOLDER to a persistent-disk path in
-    # production (e.g. /var/data/uploads/catalog) so uploads survive redeploys. Files are
-    # served through the /uploads/<filename> route below rather than Flask's static handler,
-    # since the upload folder may live outside the app's static directory.
+    # ---------------------------------------------------------
+    # Uploaded product photos
+    # ---------------------------------------------------------
+    # Defaults to the local application folder.
+    # On a host with persistent storage, UPLOAD_FOLDER can be
+    # changed to a persistent path.
     app.config["UPLOAD_FOLDER"] = os.environ.get(
-        "UPLOAD_FOLDER", os.path.join(app.static_folder, "uploads", "catalog")
+        "UPLOAD_FOLDER",
+        os.path.join(
+            app.static_folder,
+            "uploads",
+            "catalog"
+        )
     )
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-    # Payment gateways — opt-in via environment variables (see duoshao/payments.py docstring)
-    app.config["PAYPAL_CLIENT_ID"] = os.environ.get("PAYPAL_CLIENT_ID")
-    app.config["PAYPAL_SECRET"] = os.environ.get("PAYPAL_SECRET")
-    app.config["PAYPAL_MODE"] = os.environ.get("PAYPAL_MODE", "sandbox")
-    app.config["STRIPE_SECRET_KEY"] = os.environ.get("STRIPE_SECRET_KEY")
-    app.config["STRIPE_PUBLISHABLE_KEY"] = os.environ.get("STRIPE_PUBLISHABLE_KEY")
+    os.makedirs(
+        app.config["UPLOAD_FOLDER"],
+        exist_ok=True
+    )
 
-    # Outbound email — opt-in via environment variables (see duoshao/email_utils.py docstring)
-    app.config["MAIL_SERVER"] = os.environ.get("MAIL_SERVER")
-    app.config["MAIL_PORT"] = os.environ.get("MAIL_PORT", 587)
-    app.config["MAIL_USE_TLS"] = os.environ.get("MAIL_USE_TLS", "true").lower() != "false"
-    app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
-    app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
-    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
-    app.config["STAFF_NOTIFICATION_EMAIL"] = os.environ.get("STAFF_NOTIFICATION_EMAIL")
+    # ---------------------------------------------------------
+    # Payment gateways
+    # ---------------------------------------------------------
+    app.config["PAYPAL_CLIENT_ID"] = os.environ.get(
+        "PAYPAL_CLIENT_ID"
+    )
 
-    os.makedirs(os.path.join(basedir, "..", "instance"), exist_ok=True)
+    app.config["PAYPAL_SECRET"] = os.environ.get(
+        "PAYPAL_SECRET"
+    )
 
+    app.config["PAYPAL_MODE"] = os.environ.get(
+        "PAYPAL_MODE",
+        "sandbox"
+    )
+
+    app.config["STRIPE_SECRET_KEY"] = os.environ.get(
+        "STRIPE_SECRET_KEY"
+    )
+
+    app.config["STRIPE_PUBLISHABLE_KEY"] = os.environ.get(
+        "STRIPE_PUBLISHABLE_KEY"
+    )
+
+    # ---------------------------------------------------------
+    # Outbound email
+    # ---------------------------------------------------------
+    app.config["MAIL_SERVER"] = os.environ.get(
+        "MAIL_SERVER"
+    )
+
+    app.config["MAIL_PORT"] = os.environ.get(
+        "MAIL_PORT",
+        587
+    )
+
+    app.config["MAIL_USE_TLS"] = (
+        os.environ.get(
+            "MAIL_USE_TLS",
+            "true"
+        ).lower() != "false"
+    )
+
+    app.config["MAIL_USERNAME"] = os.environ.get(
+        "MAIL_USERNAME"
+    )
+
+    app.config["MAIL_PASSWORD"] = os.environ.get(
+        "MAIL_PASSWORD"
+    )
+
+    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get(
+        "MAIL_DEFAULT_SENDER"
+    )
+
+    app.config["STAFF_NOTIFICATION_EMAIL"] = os.environ.get(
+        "STAFF_NOTIFICATION_EMAIL"
+    )
+
+    # ---------------------------------------------------------
+    # Local instance directory
+    # ---------------------------------------------------------
+    os.makedirs(
+        os.path.join(
+            basedir,
+            "..",
+            "instance"
+        ),
+        exist_ok=True
+    )
+
+    # ---------------------------------------------------------
+    # Initialize database and login manager
+    # ---------------------------------------------------------
     db.init_app(app)
     login_manager.init_app(app)
 
     @login_manager.user_loader
     def load_user(user_id):
-        return db.session.get(User, int(user_id))
+        return db.session.get(
+            User,
+            int(user_id)
+        )
 
+    # ---------------------------------------------------------
+    # Blueprints
+    # ---------------------------------------------------------
     from .public.routes import public_bp
     from .auth.routes import auth_bp
     from .admin.routes import admin_bp
@@ -75,41 +189,90 @@ def create_app():
 
     app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp)
-    app.register_blueprint(admin_bp, url_prefix="/admin")
-    app.register_blueprint(account_bp, url_prefix="/account")
+    app.register_blueprint(
+        admin_bp,
+        url_prefix="/admin"
+    )
+    app.register_blueprint(
+        account_bp,
+        url_prefix="/account"
+    )
     app.register_blueprint(cart_bp)
 
+    # ---------------------------------------------------------
+    # Context processors
+    # ---------------------------------------------------------
     @app.context_processor
     def inject_cart_count():
-        return {"cart_count": cart_count()}
+        return {
+            "cart_count": cart_count()
+        }
 
     @app.context_processor
     def inject_notification_count():
         from flask_login import current_user
-        if current_user.is_authenticated and current_user.is_client:
-            count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
-            return {"unread_notifications": count}
-        return {"unread_notifications": 0}
 
+        if (
+            current_user.is_authenticated
+            and current_user.is_client
+        ):
+            count = Notification.query.filter_by(
+                user_id=current_user.id,
+                is_read=False
+            ).count()
+
+            return {
+                "unread_notifications": count
+            }
+
+        return {
+            "unread_notifications": 0
+        }
+
+    # ---------------------------------------------------------
+    # Cache-busting for static assets
+    # ---------------------------------------------------------
     @app.template_global()
     def asset_version(static_relpath):
-        """Returns the file's last-modified time as a cache-busting query string value.
-        Used as {{ url_for('static', filename='css/style.css') }}?v={{ asset_version('css/style.css') }}
-        so browsers fetch the new file immediately after a deploy instead of serving a
-        stale cached copy — no manual version number to remember to bump."""
-        full_path = os.path.join(app.static_folder, static_relpath)
+        """
+        Returns the file's last-modified time as a
+        cache-busting query string value.
+
+        Example:
+        {{ url_for('static', filename='css/style.css') }}?v={{ asset_version('css/style.css') }}
+        """
+
+        full_path = os.path.join(
+            app.static_folder,
+            static_relpath
+        )
+
         try:
-            return int(os.path.getmtime(full_path))
+            return int(
+                os.path.getmtime(full_path)
+            )
         except OSError:
             return 0
 
+    # ---------------------------------------------------------
+    # Serve uploaded product photos
+    # ---------------------------------------------------------
     @app.route("/uploads/<path:filename>")
     def serve_upload(filename):
-        """Serves product photos from app.config['UPLOAD_FOLDER'] — a separate route rather
-        than Flask's built-in static handler, since that folder may live outside the app's
-        static directory (e.g. on a persistent disk in production)."""
-        return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+        """
+        Serves product photos from UPLOAD_FOLDER.
+        """
 
+        return send_from_directory(
+            app.config["UPLOAD_FOLDER"],
+            filename
+        )
+
+    # ---------------------------------------------------------
+    # Create database tables
+    # ---------------------------------------------------------
+    # This creates missing tables when the application starts.
+    # Existing data is NOT deleted.
     with app.app_context():
         db.create_all()
 
