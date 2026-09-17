@@ -1,0 +1,91 @@
+{% extends "admin/base.html" %}
+{% block title %}New Sale — Duoshao Admin{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>New Sale</h1></div>
+
+<form class="form-card" method="POST" style="max-width:760px;">
+  <div class="form-row">
+    <div class="form-group">
+      <label>Existing Customer</label>
+      <select name="customer_id">
+        <option value="">— Select —</option>
+        {% for c in customers %}
+        <option value="{{ c.id }}">{{ c.name }}{% if c.company %} ({{ c.company }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Or Type Customer Name</label>
+      <input type="text" name="customer_name_freetext" placeholder="Walk-in / new customer name">
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" name="date">
+    </div>
+  </div>
+
+  <label style="display:block; font-size:12px; letter-spacing:0.5px; text-transform:uppercase; color:#8a6d3b; font-weight:bold; margin:20px 0 10px;">Items</label>
+  <p class="muted" style="margin:-4px 0 10px;">Pick from the catalog (auto-fills price) or type any custom item — not limited to what's in the database.</p>
+  <datalist id="catalog-options">
+    {% for c in catalog_items %}
+    <option value="{{ c.name }}" data-price="{{ c.unit_price_usd or '' }}">
+    {% endfor %}
+  </datalist>
+  <div id="items-wrap">
+    <div class="form-row item-row">
+      <div class="form-group" style="flex:3;"><input type="text" name="item_description" list="catalog-options" placeholder="Description — catalog item or custom" oninput="autofillPrice(this)"></div>
+      <div class="form-group" style="flex:1;"><input type="number" step="0.01" name="item_quantity" placeholder="Qty" value="1"></div>
+      <div class="form-group" style="flex:1;"><input type="number" step="0.01" name="item_price" placeholder="Unit Price USD"></div>
+    </div>
+  </div>
+  <button type="button" class="btn btn-outline btn-sm" onclick="addRow()" style="margin-bottom:20px;">+ Add Line</button>
+
+  <div class="form-group">
+    <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:normal;">
+      <input type="checkbox" name="apply_service_fee" value="1" style="width:auto;"> Apply 10% Sourcing Service Fee (on items subtotal)
+    </label>
+  </div>
+  <div class="form-group">
+    <label>Estimated Shipping / Delivery (USD)</label>
+    <input type="number" step="0.01" name="shipping_estimate_usd" placeholder="e.g. 45.00">
+  </div>
+
+  <div class="form-group">
+    <label>Notes</label>
+    <div style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:6px;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="addNote('Please verify product details and quantities before payment.')">+ Verify before payment</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="addNote('Shipping/delivery charges are excluded unless stated.')">+ Shipping excluded</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="addNote('Warranty/returns are subject to the applicable product terms.')">+ Warranty/returns</button>
+      <button type="button" class="btn btn-outline btn-sm" onclick="addNote('All payments received are recorded against the stated invoice/order.')">+ Payments recorded</button>
+    </div>
+    <textarea id="notes-field" name="notes" placeholder="Click a suggestion above, or type your own terms/notes"></textarea>
+  </div>
+
+  <button type="submit" class="btn btn-gold" style="width:100%;">Save Sale</button>
+</form>
+
+<script>
+function addRow() {
+  const wrap = document.getElementById('items-wrap');
+  const row = wrap.children[0].cloneNode(true);
+  row.querySelectorAll('input').forEach(i => { if (i.name !== 'item_quantity') i.value = ''; else i.value = '1'; });
+  wrap.appendChild(row);
+}
+function autofillPrice(input) {
+  const options = document.getElementById('catalog-options').options;
+  for (const opt of options) {
+    if (opt.value === input.value) {
+      const priceField = input.closest('.item-row').querySelector('input[name="item_price"]');
+      if (opt.dataset.price && !priceField.value) priceField.value = opt.dataset.price;
+      break;
+    }
+  }
+}
+function addNote(text) {
+  const field = document.getElementById('notes-field');
+  if (field.value.includes(text)) return;
+  const bullet = '- ' + text;
+  field.value = field.value ? field.value + '\n' + bullet : bullet;
+}
+</script>
+{% endblock %}

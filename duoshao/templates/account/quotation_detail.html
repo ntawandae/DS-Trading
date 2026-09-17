@@ -1,0 +1,59 @@
+{% extends "account/base.html" %}
+{% block title %}{{ quote.quote_number }} — Duoshao Trading{% endblock %}
+{% block content %}
+<div class="section-title"><span>{{ quote.quote_number }}</span></div>
+
+<div class="card-block">
+  <p><strong>Date:</strong> {{ quote.date.strftime('%d %b %Y') }} &nbsp;·&nbsp; <strong>Valid Until:</strong> {{ quote.valid_until.strftime('%d %b %Y') if quote.valid_until else '—' }}</p>
+  <p><strong>Status:</strong> <span class="badge badge-{{ quote.status_badge_class }}">{{ quote.status }}</span></p>
+</div>
+
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead>
+    <tbody>
+      {% for item in quote.items %}
+      <tr>
+        <td>{{ item.description }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>${{ "%.2f"|format(item.unit_price_usd) }}</td>
+        <td>${{ "%.2f"|format(item.line_total) }}</td>
+      </tr>
+      {% endfor %}
+      <tr><td colspan="3" class="text-right">Items Subtotal</td><td>${{ "%.2f"|format(quote.items_subtotal) }}</td></tr>
+      <tr><td colspan="3" class="text-right">Sourcing Service Fee (10%)</td><td>${{ "%.2f"|format(quote.service_fee_usd or 0) }}</td></tr>
+      <tr><td colspan="3" class="text-right">Estimated Shipping / Delivery</td><td>${{ "%.2f"|format(quote.shipping_estimate_usd or 0) }}</td></tr>
+      <tr style="font-weight:bold;"><td colspan="3" class="text-right">Total</td><td>${{ "%.2f"|format(quote.total) }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+{% if quote.notes %}
+<div class="card-block"><strong>Notes:</strong> <span style="white-space:pre-line;">{{ quote.notes }}</span></div>
+{% endif %}
+
+{% if quote.status in ['draft', 'sent'] %}
+<div class="card-block" style="text-align:center;">
+  <h3 style="margin-bottom:14px;">Ready to proceed?</h3>
+  <p class="muted" style="margin-bottom:18px;">Accepting will place this as an order immediately for the total shown above.</p>
+  <div style="display:flex; gap:14px; justify-content:center;">
+    <form method="POST" action="{{ url_for('account.quotation_accept', quote_id=quote.id) }}" onsubmit="return confirm('Accept this quotation and place the order for ${{ '%.2f'|format(quote.total) }}?');">
+      <button type="submit" class="btn btn-gold">Accept &amp; Place Order</button>
+    </form>
+    <form method="POST" action="{{ url_for('account.quotation_reject', quote_id=quote.id) }}" onsubmit="return confirm('Decline this quotation?');">
+      <button type="submit" class="btn btn-outline">Decline</button>
+    </form>
+  </div>
+</div>
+{% elif quote.status == 'accepted' %}
+<div class="card-block" style="text-align:center;">
+  <p class="muted">You've accepted this quotation — check <a href="{{ url_for('account.dashboard') }}">My Orders</a> for the resulting order.</p>
+</div>
+{% elif quote.status == 'rejected' %}
+<div class="card-block" style="text-align:center;">
+  <p class="muted">You declined this quotation. Need a revised quote? <a href="{{ url_for('account.sourcing_request') }}">Submit a new request</a>.</p>
+</div>
+{% endif %}
+
+<p class="muted">Questions about this quotation? Reach out via WhatsApp or email — details in the footer below.</p>
+{% endblock %}

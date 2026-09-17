@@ -1,0 +1,69 @@
+{% extends "account/base.html" %}
+{% block title %}My Profile — Duoshao Trading{% endblock %}
+{% block content %}
+<div class="section-title"><span>My Profile</span></div>
+
+{% if not current_user.email_verified %}
+<div class="card-block" style="background:#fdf6ec;">
+  <p class="muted" style="margin-bottom:10px;">Your email address isn't verified yet.</p>
+  <form method="POST" action="{{ url_for('account.resend_verification') }}">
+    <button type="submit" class="btn btn-outline btn-sm">Resend Verification Email</button>
+  </form>
+</div>
+{% endif %}
+
+<div style="display:flex; gap:24px; flex-wrap:wrap;">
+
+  <div class="card-block" style="flex:1; min-width:340px;">
+    <h3 style="margin-bottom:16px;">Personal Details</h3>
+    <form method="POST">
+      <input type="hidden" name="form_type" value="personal">
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" name="name" value="{{ customer.name if customer else current_user.full_name }}">
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Company</label><input type="text" name="company" value="{{ customer.company if customer else '' }}"></div>
+        <div class="form-group"><label>Country</label><input type="text" name="country" value="{{ customer.country if customer else '' }}"></div>
+      </div>
+      <div class="form-group">
+        <label>Phone / WhatsApp</label>
+        <input type="text" name="phone" value="{{ customer.phone if customer else '' }}">
+      </div>
+      <div class="form-group">
+        <label>Default Delivery Address</label>
+        <textarea name="address" placeholder="Used to prefill checkout when you choose delivery">{{ (customer.address or '') if customer else '' }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-gold">Save Details</button>
+    </form>
+  </div>
+
+  <div class="card-block" style="flex:1; min-width:340px;">
+    <h3 style="margin-bottom:6px;">Email Address</h3>
+    <p class="muted" style="margin-bottom:16px;">
+      Current: <strong style="color:var(--navy);">{{ current_user.username }}</strong>
+      {% if current_user.email_verified %}
+        <span class="badge badge-paid">Verified</span>
+      {% else %}
+        <span class="badge badge-pending">Not Verified</span>
+      {% endif %}
+    </p>
+    <form method="POST">
+      <input type="hidden" name="form_type" value="email">
+      <div class="form-group"><label>New Email</label><input type="email" name="email"></div>
+      <div class="form-group"><label>Current Password (to confirm)</label><input type="password" name="current_password" required></div>
+      <button type="submit" class="btn btn-navy">Update Email</button>
+    </form>
+
+    <h3 style="margin:26px 0 16px;">Change Password</h3>
+    <form method="POST">
+      <input type="hidden" name="form_type" value="password">
+      <div class="form-group"><label>Current Password</label><input type="password" name="current_password" required></div>
+      <div class="form-group"><label>New Password</label><input type="password" name="new_password" required minlength="6"></div>
+      <div class="form-group"><label>Confirm New Password</label><input type="password" name="confirm_password" required minlength="6"></div>
+      <button type="submit" class="btn btn-navy">Change Password</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
