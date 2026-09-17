@@ -113,94 +113,71 @@ def _delete_supabase_files(filenames):
 
 
 def _save_catalog_image(file_storage, item_id):
-    """
-    Upload the main product image to Supabase Storage.
-
-    The database continues to store only the filename, preserving the
-    existing Product.image_filename field.
-    """
     if not file_storage or not file_storage.filename:
         return None
 
-    if "." not in file_storage.filename:
-        return None
-
     ext = file_storage.filename.rsplit(".", 1)[-1].lower()
-
     if ext not in ALLOWED_IMAGE_EXT:
         return None
 
     filename = f"item-{item_id}.{ext}"
+    storage_path = f"catalog/{filename}"
 
     try:
-        supabase = _supabase_client()
+        supabase = _get_supabase_client()
 
-        # Make sure the stream is positioned at the beginning.
+        # Read the uploaded Flask file into bytes.
         file_storage.stream.seek(0)
+        file_data = file_storage.stream.read()
 
         supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=filename,
-            file=file_storage.stream,
+            storage_path,
+            file_data,
             file_options={
-                "content-type": file_storage.mimetype
-                or "application/octet-stream",
+                "content-type": file_storage.mimetype or "application/octet-stream",
                 "upsert": "true",
             },
         )
 
-        return filename
+        return storage_path
 
-    except Exception as e:
-        current_app.logger.exception(
-            "Failed to upload product image to Supabase Storage."
-        )
-        flash(f"Image upload failed: {e}", "error")
-        return None
+    except Exception:
+        current_app.logger.exception("Failed to upload catalog image to Supabase.")
+        raise
 
 
 def _save_gallery_image(file_storage, item_id):
-    """
-    Upload an additional product image to Supabase Storage.
-
-    Gallery filenames are unique so multiple gallery images can exist
-    for the same product.
-    """
     if not file_storage or not file_storage.filename:
         return None
 
-    if "." not in file_storage.filename:
-        return None
-
     ext = file_storage.filename.rsplit(".", 1)[-1].lower()
-
     if ext not in ALLOWED_IMAGE_EXT:
         return None
 
     filename = f"item-{item_id}-{uuid.uuid4().hex[:8]}.{ext}"
+    storage_path = f"catalog/{filename}"
 
     try:
-        supabase = _supabase_client()
+        supabase = _get_supabase_client()
 
+        # Read the uploaded Flask file into bytes.
         file_storage.stream.seek(0)
+        file_data = file_storage.stream.read()
 
         supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=filename,
-            file=file_storage.stream,
+            storage_path,
+            file_data,
             file_options={
-                "content-type": file_storage.mimetype
-                or "application/octet-stream",
+                "content-type": file_storage.mimetype or "application/octet-stream",
                 "upsert": "true",
             },
         )
 
-        return filename
+        return storage_path
 
-    except Exception as e:
-        current_app.logger.exception(
-            "Failed to upload gallery image to Supabase Storage."
-        )
-        flash(f"Gallery image upload failed: {e}", "error")
-        return None
+    except Exception:
+        current_app.logger.exception("Failed to upload gallery image to Supabase.")
+        raise
 
 
 # ---------- Dashboard ----------
