@@ -48,6 +48,37 @@
   </table>
 </div>
 
+{% if sale.balance_due > 0.005 %}
+<div class="card-block" style="text-align:center;">
+  <h3 style="margin-bottom:10px;">Balance Due: ${{ "%.2f"|format(sale.balance_due) }}</h3>
+  {% if paypal_available or stripe_available %}
+  <p class="muted" style="margin-bottom:16px;">Pay the remaining balance securely online:</p>
+  <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:18px;">
+    {% if paypal_available %}
+    <a href="{{ url_for('cart.paypal_pay', sale_id=sale.id) }}" class="btn btn-gold">Pay via PayPal</a>
+    {% endif %}
+    {% if stripe_available %}
+    <a href="{{ url_for('cart.stripe_pay', sale_id=sale.id) }}" class="btn btn-navy">Pay via Card</a>
+    {% endif %}
+  </div>
+  <p class="muted" style="font-size:12.5px;">
+    Prefer bank transfer or cash? Email
+    <a href="mailto:info@duoshaotrading.com?subject=Payment%20for%20Order%20%23{{ sale.id }}">info@duoshaotrading.com</a>
+    or message us on <a href="https://wa.me/8614768628265" target="_blank" rel="noopener">WhatsApp</a>
+    with proof of payment and we'll update your order manually.
+  </p>
+  {% else %}
+  <p class="muted" style="margin-bottom:10px;">Online payment isn't available right now.</p>
+  <p class="muted">
+    Please pay by bank transfer or cash, then send proof of payment to
+    <a href="mailto:info@duoshaotrading.com?subject=Payment%20for%20Order%20%23{{ sale.id }}">info@duoshaotrading.com</a>
+    or message us on <a href="https://wa.me/8614768628265" target="_blank" rel="noopener">WhatsApp</a> —
+    we'll update your order once it's confirmed.
+  </p>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if sale.receipts %}
 <div class="section-title"><span>Payment History</span></div>
 <div class="table-wrap">
