@@ -1,25 +1,30 @@
 {% extends "public/base.html" %}
 {% block title %}About Us — DS Trading | Duoshao Trading Co., Ltd.{% endblock %}
 {% block content %}
-<div class="container" style="padding-top:40px; padding-bottom:60px; max-width:840px;">
+<div class="container" style="padding-top:36px; padding-bottom:50px; max-width:860px;">
 
   <div class="about-hero">
-    <h1>DS Trading</h1>
+    < img src="{{ url_for('static', filename='img/logo-navy.png') }}" alt="DS Trading" class="about-logo">
     <div class="tagline">Trading &amp; Sourcing Solutions</div>
     <div class="flag-route">China 🇨🇳 &nbsp;→&nbsp; Zambia 🇿🇲 &nbsp;|&nbsp; Zimbabwe 🇿🇼</div>
   </div>
 
-  <p>DS Trading is the customer-facing brand of <strong>Haikou Duoshao Trading Co., Ltd.</strong> (海口多少贸易有限公司),
-    a company registered in the Hainan Free Trade Port, China.</p>
+  <div class="about-intro-grid">
+    <div class="about-intro-card">
+      <div class="label">Who We Are</div>
+      <p>DS Trading is the customer-facing brand of <strong>Haikou Duoshao Trading Co., Ltd.</strong> (海口多少贸易有限公司),
+        registered in the Hainan Free Trade Port. Founded by Zimbabwean and Zambian entrepreneurs based in China,
+        we help individuals and businesses access Chinese manufacturers and products, hassle-free.</p >
+    </div>
+    <div class="about-intro-card">
+      <div class="label">What We Source</div>
+      <p>Industrial machinery, electronics, solar products, beauty products, event equipment, smart home solutions
+        and custom products — our team is on the ground in China to find suppliers, negotiate prices, inspect
+        goods and arrange shipping.</p >
+    </div>
+  </div>
 
-  <p>Founded by Zimbabwean and Zambian entrepreneurs based in China, we help individuals, entrepreneurs and businesses
-    access Chinese manufacturers, suppliers and products while simplifying the challenges of sourcing and importing from China.</p>
-
-  <p>Whether you need industrial machinery, electronics, solar products, beauty products, event equipment, smart home
-    solutions or custom products, our team is on the ground in China to help identify suitable suppliers, negotiate
-    prices, inspect goods and arrange shipping.</p>
-
-  <div class="section-title" style="margin-top:36px;"><span>Our Services</span></div>
+  <div class="section-title" style="margin-top:28px;"><span>Our Services</span></div>
   <div class="services-grid">
     <div class="service-item"><span class="check">✅</span> Product sourcing &amp; supplier verification</div>
     <div class="service-item"><span class="check">✅</span> Price negotiation with manufacturers</div>
@@ -27,44 +32,35 @@
     <div class="service-item"><span class="check">✅</span> Order consolidation</div>
     <div class="service-item"><span class="check">✅</span> Export documentation</div>
     <div class="service-item"><span class="check">✅</span> Shipping &amp; logistics support</div>
-    <div class="service-item"><span class="check">✅</span> On-demand sourcing across a wide range of product categories</div>
+    <div class="service-item"><span class="check">✅</span> On-demand sourcing, any category</div>
   </div>
 
-  <p style="margin-top:24px;">We work directly from China and maintain connections in both Zambia and Zimbabwe, allowing
-    us to provide clear communication, regular order updates and support throughout the sourcing and shipping process.</p>
-
-  <div class="section-title" style="margin-top:36px;"><span>Our Approach</span></div>
   <div class="approach-quote">
-    <div class="gold-line">At DS Trading, our goal is simple</div>
-    You tell us what you need.<br>We handle the sourcing, procurement and logistics.
+    <span class="gold-line">Our Approach —</span>
+    You tell us what you need. We handle the sourcing, procurement and logistics.
   </div>
-  <p>Whether you're placing your first small order or sourcing products for an established business, we aim to make
-    purchasing from China clearer, more accessible and easier to manage.</p>
 
-  <div class="section-title" style="margin-top:36px;"><span>Get In Touch</span></div>
+  <div class="section-title" style="margin-top:28px;"><span>Get In Touch</span></div>
   <div class="contact-grid">
     <div class="contact-card">
-      <div class="label">Phone / WeChat</div>
-      <a href="tel:+8613028420237">+86 130 2842 0237</a>
+      <div class="label">📱 Phone / WeChat</div>
+      <a href=" ">+86 130 2842 0237</a >
     </div>
     <div class="contact-card">
-      <div class="label">WhatsApp</div>
-      <a href="https://wa.me/8614768628265" target="_blank" rel="noopener">+86 147 6862 8265</a>
+      <div class="label">📲 WhatsApp</div>
+      <a href="https://wa.me/8614768628265" target="_blank" rel="noopener">+86 147 6862 8265</a >
     </div>
     <div class="contact-card">
-      <div class="label">Email</div>
-      <a href="mailto:info@duoshaotrading.com">info@duoshaotrading.com</a>
+      <div class="label">📧 Email</div>
+      <a href="mailto:info@duoshaotrading.com">info@duoshaotrading.com</a >
     </div>
-  </div>
-
-  <div class="contact-grid" style="margin-top:14px;">
     <div class="contact-card">
       <div class="label">🇨🇳 China Office</div>
-      Haikou Free Trade Port, Hainan, China
+      Haikou Free Trade Port, Hainan
     </div>
     <div class="contact-card">
-      <div class="label">🇿🇼 Zimbabwe Contact Point</div>
-      Karimapondo Mall, Corner L. Takawira &amp; R. G. Mugabe<br>1st Floor, Workstation Space 25
+      <div class="label">🇿🇼 Zimbabwe</div>
+      Karimapondo Mall, Cnr L. Takawira &amp; R. G. Mugabe, 1st Floor, Space 25
     </div>
     <div class="contact-card">
       <div class="label">🇿🇲 Zambia</div>
