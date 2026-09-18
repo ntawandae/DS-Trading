@@ -421,3 +421,29 @@ body.no-scroll { overflow: hidden; }
 .muted { color: var(--lgrey); font-size: 12.5px; }
 .mt-0 { margin-top: 0; }
 .empty-state { text-align: center; padding: 50px 20px; color: var(--lgrey); }
+/* ---------- About page ---------- */
+.about-hero { text-align: center; padding: 10px 0 30px; }
+.about-hero h1 { font-family: Georgia, serif; font-size: 32px; color: var(--navy); margin-bottom: 6px; }
+.about-hero .tagline { font-size: 13px; color: var(--gold-dark); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; }
+.flag-route { font-size: 17px; font-weight: bold; color: var(--navy); }
+
+.services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 18px 0 10px; }
+.service-item {
+  display: flex; align-items: flex-start; gap: 10px; background: #fff; border-radius: 6px;
+  padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); font-size: 13.5px; line-height: 1.5;
+}
+.service-item .check { flex-shrink: 0; }
+
+.approach-quote {
+  background: var(--navy); color: #fff; border-radius: 8px; padding: 28px 30px; margin: 20px 0;
+  text-align: center; font-family: Georgia, serif; font-size: 18px; line-height: 1.6;
+}
+.approach-quote .gold-line {
+  color: var(--gold); font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px;
+  margin-bottom: 10px; font-family: Arial, sans-serif;
+}
+
+.contact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.contact-card { background: #fff; border-radius: 6px; padding: 16px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); font-size: 13.5px; line-height: 1.5; }
+.contact-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gold-dark); font-weight: bold; margin-bottom: 6px; }
+.contact-card a { color: var(--navy); font-weight: bold; }
