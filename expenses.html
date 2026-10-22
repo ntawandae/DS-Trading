@@ -1,0 +1,66 @@
+{% extends "admin/base.html" %}
+{% block title %}Payments & Expenses — Duoshao Admin{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Payments &amp; Expenses</h1></div>
+
+<div class="card-block">
+  <h3 style="margin-bottom:16px;">Log Expense / Payment</h3>
+  <form method="POST">
+    <div class="form-row">
+      <div class="form-group"><label>Date</label><input type="date" name="date"></div>
+      <div class="form-group">
+        <label>Category *</label>
+        <select name="category" required>
+          <option value="sourcing">Sourcing / Procurement</option>
+          <option value="logistics">Logistics / Freight</option>
+          <option value="customs">Customs / Duties</option>
+          <option value="office">Office / Admin</option>
+          <option value="utilities">Utilities</option>
+          <option value="marketing">Marketing</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Amount (USD) *</label><input type="number" step="0.01" name="amount_usd" required></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Paid To</label><input type="text" name="paid_to"></div>
+      <div class="form-group">
+        <label>Method</label>
+        <select name="method">
+          <option value="bank_transfer">Bank Transfer</option>
+          <option value="cash">Cash</option>
+          <option value="mobile_money">Mobile Money</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Description</label><input type="text" name="description"></div>
+    <button type="submit" class="btn btn-gold">Log Expense</button>
+  </form>
+</div>
+
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid To</th><th>Method</th><th>Amount</th></tr></thead>
+    <tbody>
+      {% for e in expenses %}
+      <tr>
+        <td>{{ e.date.strftime('%d %b %Y') }}</td>
+        <td>{{ e.category|replace('_',' ')|title }}</td>
+        <td>{{ e.description }}</td>
+        <td>{{ e.paid_to }}</td>
+        <td>{{ e.method|replace('_',' ') }}</td>
+        <td>${{ "%.2f"|format(e.amount_usd) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No expenses logged yet.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if expenses %}
+    <tfoot>
+      <tr style="font-weight:bold;"><td colspan="5" class="text-right">Total</td><td>${{ "%.2f"|format(total) }}</td></tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% endblock %}

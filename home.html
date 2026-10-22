@@ -1,0 +1,27 @@
+{% extends "public/base.html" %}
+{% block title %}Catalog — Duoshao Trading Co., Ltd.{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <div class="container">
+    <h1>We Source It. On Demand.</h1>
+    <p>From smart home fixtures to event equipment, machinery, and everyday essentials — Duoshao Trading connects Chinese manufacturing directly to Southern Africa. Browse what we already have, or tell us what you need.</p>
+    <a class="btn btn-gold" href="{{ url_for('public.sourcing_request') }}">Request a Product</a>
+  </div>
+</section>
+
+
+<div class="container">
+  <div class="section-title"><span>Catalog</span></div>
+
+  {% set search_url = url_for('public.home') %}
+  {% include "_catalog_section.html" %}
+
+  <div class="card-block" style="text-align:center; margin: 40px 0 60px;">
+    <h2 style="margin-bottom:10px;">Don't see what you need?</h2>
+    <p class="muted" style="margin-bottom:18px;">We're a general sourcing company — if it's trending or in demand, we can find it.</p>
+    <a class="btn btn-navy" href="{{ url_for('public.sourcing_request') }}">Submit a Sourcing Request</a>
+  </div>
+</div>
+
+{% endblock %}

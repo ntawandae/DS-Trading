@@ -1,0 +1,56 @@
+<nav class="public-nav">
+  <div class="container">
+    <a href="{{ url_for('public.home') }}"><img class="logo" src="{{ url_for('static', filename='img/logo-white.png') }}" alt="Duoshao Trading"></a>
+    <button class="nav-hamburger" id="navHamburger" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navLinks">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links" id="navLinks">
+      <a href="{{ url_for('public.home') }}">Catalog</a>
+      {% if current_user.is_authenticated and current_user.is_client %}
+      <a href="{{ url_for('account.dashboard') }}">My Account</a>
+      <a href="{{ url_for('account.profile') }}">My Profile</a>
+      <a href="{{ url_for('account.notifications') }}">Notifications{% if unread_notifications %} ({{ unread_notifications }}){% endif %}</a>
+      <a href="{{ url_for('account.sourcing_request') }}">Request Sourcing</a>
+      <a href="{{ url_for('cart.view_cart') }}">Cart{% if cart_count %} ({{ cart_count }}){% endif %}</a>
+      <a href="{{ url_for('auth.logout') }}">Log Out</a>
+      {% elif current_user.is_authenticated and current_user.is_worker %}
+      <a href="{{ url_for('cart.view_cart') }}">Cart{% if cart_count %} ({{ cart_count }}){% endif %}</a>
+      <a href="{{ url_for('admin.dashboard') }}">Admin Panel</a>
+      <a href="{{ url_for('auth.logout') }}">Log Out</a>
+      {% else %}
+      <a href="{{ url_for('public.sourcing_request') }}">Request Sourcing</a>
+      <a href="{{ url_for('public.about') }}">About</a>
+      <a href="{{ url_for('cart.view_cart') }}">Cart{% if cart_count %} ({{ cart_count }}){% endif %}</a>
+      <a href="{{ url_for('account.register') }}">Client Sign Up</a>
+      <a href="{{ url_for('auth.login') }}">Login</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<script>
+  (function () {
+    var btn = document.getElementById('navHamburger');
+    var links = document.getElementById('navLinks');
+    if (!btn || !links) return;
+
+    function closeNav() {
+      links.classList.remove('show');
+      btn.classList.remove('active');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+    function toggleNav() {
+      var open = links.classList.toggle('show');
+      btn.classList.toggle('active', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    btn.addEventListener('click', toggleNav);
+    links.querySelectorAll('a').forEach(function (link) {
+      link.addEventListener('click', closeNav);
+    });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 780) closeNav();
+    });
+  })();
+</script>

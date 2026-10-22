@@ -1,0 +1,29 @@
+{% extends "public/base.html" %}
+{% block title %}Create Your Account — Duoshao Trading Co., Ltd.{% endblock %}
+{% block content %}
+<div class="container" style="padding-top:40px; padding-bottom:60px;">
+  <div class="section-title"><span>Create Your Account</span></div>
+  <p class="muted" style="max-width:560px; margin-bottom:26px;">Sign up to track your orders and quotations, and request sourcing directly from your dashboard.</p>
+
+  <form class="form-card" method="POST">
+    <div class="form-group">
+      <label>Full Name *</label>
+      <input type="text" name="name" required>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Company</label><input type="text" name="company"></div>
+      <div class="form-group"><label>Country</label><input type="text" name="country"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Phone / WhatsApp</label><input type="text" name="phone"></div>
+      <div class="form-group"><label>Email *</label><input type="email" name="email" required></div>
+    </div>
+    <div class="form-group">
+      <label>Password *</label>
+      <input type="password" name="password" required minlength="6">
+    </div>
+    <button type="submit" class="btn btn-gold" style="width:100%;">Create Account</button>
+    <p class="muted" style="text-align:center; margin-top:16px;">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+  </form>
+</div>
+{% endblock %}

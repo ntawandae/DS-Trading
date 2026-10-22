@@ -1,0 +1,65 @@
+{% extends "admin/base.html" %}
+{% block title %}Reports — Duoshao Admin{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Financial Reports</h1></div>
+
+<div class="tabs">
+  <a href="{{ url_for('admin.reports', period='day', offset=0) }}" class="{{ 'active' if period == 'day' }}">Day</a>
+  <a href="{{ url_for('admin.reports', period='week', offset=0) }}" class="{{ 'active' if period == 'week' }}">Week</a>
+  <a href="{{ url_for('admin.reports', period='month', offset=0) }}" class="{{ 'active' if period == 'month' }}">Month</a>
+  <a href="{{ url_for('admin.reports', period='quarter', offset=0) }}" class="{{ 'active' if period == 'quarter' }}">Quarter</a>
+  <a href="{{ url_for('admin.reports', period='year', offset=0) }}" class="{{ 'active' if period == 'year' }}">Year</a>
+</div>
+
+<div style="display:flex; align-items:center; gap:14px; margin-bottom:24px;">
+  <a href="{{ url_for('admin.reports', period=period, offset=offset-1) }}" class="btn btn-outline btn-sm">‹ Previous</a>
+  <h2 class="serif" style="font-size:18px;">{{ label }}</h2>
+  <a href="{{ url_for('admin.reports', period=period, offset=offset+1) }}" class="btn btn-outline btn-sm">Next ›</a>
+  {% if offset != 0 %}<a href="{{ url_for('admin.reports', period=period, offset=0) }}" class="muted" style="font-size:12px;">jump to current</a>{% endif %}
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">Revenue Received</div>
+    <div class="value">${{ "%.2f"|format(revenue) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Expenses</div>
+    <div class="value">${{ "%.2f"|format(expenses) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Payroll Paid</div>
+    <div class="value">${{ "%.2f"|format(payroll_paid) }}</div>
+  </div>
+  <div class="stat-card" style="border-left-color: {{ '#2f7a4f' if profit >= 0 else '#b3413f' }};">
+    <div class="label">Net Profit</div>
+    <div class="value" style="color: {{ '#2f7a4f' if profit >= 0 else '#b3413f' }};">${{ "%.2f"|format(profit) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Sales Recorded</div>
+    <div class="value">{{ sales_in_range }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Quotations Issued</div>
+    <div class="value">{{ quotes_in_range }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Current Float / Cash</div>
+    <div class="value">${{ "%.2f"|format(float_balance) }}</div>
+  </div>
+</div>
+
+<div class="section-title"><span>Expense Breakdown — {{ label }}</span></div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+    <tbody>
+      {% for category, amount in expense_breakdown %}
+      <tr><td>{{ category|replace('_',' ')|title }}</td><td>${{ "%.2f"|format(amount) }}</td></tr>
+      {% else %}
+      <tr><td colspan="2" class="muted">No expenses in this period.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

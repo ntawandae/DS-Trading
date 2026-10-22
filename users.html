@@ -1,0 +1,67 @@
+{% extends "admin/base.html" %}
+{% block title %}Users & Roles — Duoshao Admin{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Users &amp; Roles</h1></div>
+
+<div class="card-block" style="max-width:600px;">
+  <h3 style="margin-bottom:14px;">Create Staff Account</h3>
+  <p class="muted" style="margin-bottom:14px;">Client accounts are self-service (customers sign up on the public site) — this is only for internal Management / Worker logins.</p>
+  <form method="POST" action="{{ url_for('admin.users_new') }}">
+    <div class="form-row">
+      <div class="form-group"><label>Full Name *</label><input type="text" name="full_name" required></div>
+      <div class="form-group"><label>Username *</label><input type="text" name="username" required></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Role *</label>
+        <select name="role" required>
+          <option value="worker">Worker — cashier / operations (expenses, float, sales, requests)</option>
+          <option value="finance_hr">Finance / HR — payroll, reports, plus everything a Worker can do</option>
+          <option value="admin">Management — full access, including creating other accounts</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Temporary Password *</label><input type="text" name="password" placeholder="e.g. changeme123" required></div>
+    </div>
+    <button type="submit" class="btn btn-gold">Create Account</button>
+  </form>
+</div>
+
+<div class="section-title"><span>All Users</span></div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Reset Password</th><th></th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.full_name }}</td>
+        <td>{{ u.username }}</td>
+        <td>
+          {% if u.role == 'admin' %}<span class="badge badge-paid">Management</span>
+          {% elif u.role == 'finance_hr' %}<span class="badge badge-partial">Finance / HR</span>
+          {% elif u.role == 'worker' %}<span class="badge badge-progress">Worker</span>
+          {% else %}<span class="badge badge-quoted">Client</span>{% endif %}
+        </td>
+        <td>{{ 'Active' if u.active else 'Deactivated' }}</td>
+        <td>
+          {% if u.role != 'client' %}
+          <form method="POST" action="{{ url_for('admin.users_reset_password', user_id=u.id) }}" style="display:flex; gap:6px;">
+            <input type="text" name="password" placeholder="new password" style="font-size:12px; padding:5px; width:130px;">
+            <button class="btn btn-outline btn-sm" type="submit">Reset</button>
+          </form>
+          {% endif %}
+        </td>
+        <td>
+          {% if u.id != current_user.id and u.role != 'client' %}
+          <form method="POST" action="{{ url_for('admin.users_toggle', user_id=u.id) }}">
+            <button class="btn btn-outline btn-sm" type="submit">{{ 'Deactivate' if u.active else 'Reactivate' }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No users yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
