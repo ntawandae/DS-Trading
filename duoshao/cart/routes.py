@@ -22,24 +22,25 @@ def _save_cart(cart):
     session.modified = True
 
 
-def _make_line_key(item_id, variant=""):
-    """Create a unique cart line key using product ID and variant."""
-    return f"{item_id}|{variant or ''}"
+def _make_line_key(item_id, variant="", method=""):
+    """Create a unique cart line key: product ID, option, and shipping method (air/sea)."""
+    return f"{item_id}|{variant or ''}|{method or ''}"
 
 
 def _parse_line_key(line_key):
     """
-    Return (item_id, variant).
+    Return (item_id, variant, method).
 
-    Tolerates old carts saved before variants existed
-    (plain numeric keys with no '|').
+    Tolerates older carts: plain numeric keys, and "id|variant" keys from before
+    shipping methods existed.
     """
-    if "|" in line_key:
-        item_id_str, variant = line_key.split("|", 1)
-    else:
-        item_id_str, variant = line_key, ""
-
-    return int(item_id_str), variant
+    parts = str(line_key).split("|")
+    item_id = int(parts[0])
+    if len(parts) == 1:
+        return item_id, "", ""
+    if len(parts) == 2:
+        return item_id, parts[1], ""
+    return item_id, "|".join(parts[1:-1]), parts[-1]
 
 
 def _cart_items_detailed():
@@ -62,7 +63,7 @@ def _cart_items_detailed():
 
         # Protect against malformed/stale session data
         try:
-            item_id, variant = _parse_line_key(line_key)
+            item_id, variant, method = _parse_line_key(line_key)
         except (ValueError, TypeError):
             continue
 
@@ -88,8 +89,14 @@ def _cart_items_detailed():
         if (choices and variant not in choices) or (not choices and variant):
             continue
 
-        # Price always comes from the database, per option — never from the browser.
-        price = item.price_for_variant(variant)
+        # Price always comes from the database, per option and shipping method — never from
+        # the browser. A method the product doesn't offer (or an older cart with none) falls
+        # back to the product's first available method.
+        allowed = item.pricing_methods
+        price_method = method if method in allowed else allowed[0]
+        price = item.price_for_variant(variant, price_method)
+        # Only items ordered from China carry a shipping method; in-stock items are local.
+        ship_method = price_method if item.availability != "in_stock" else ""
 
         cleaned_cart[line_key] = qty
 
@@ -98,6 +105,8 @@ def _cart_items_detailed():
             "variant": variant,
             "qty": qty,
             "unit_price": price,
+            "method": ship_method,
+            "method_label": {"air": "Air freight", "sea": "Sea freight"}.get(ship_method, ""),
             "line_total": round(price * qty, 2),
             "line_key": line_key,
         })
@@ -143,8 +152,18 @@ def add_to_cart():
     else:
         variant = ""
 
+    # Shipping method (air / sea) — only matters for items ordered from China.
+    allowed = item.pricing_methods
+    method = request.form.get("shipping_method", "").strip().lower()
+    if len(allowed) == 1:
+        method = allowed[0]
+    elif method not in allowed:
+        flash("Please choose a shipping method (air or sea) before adding this item.", "error")
+        return anchor_redirect
+    line_method = method if item.availability != "in_stock" else ""
+
     # Items not held in local stock are ordered from China, so they only need a price.
-    if not item.price_for_variant(variant):
+    if not item.price_for_variant(variant, method):
         flash(
             f"{item.name}{' — ' + variant if variant else ''} needs a quotation first "
             f"— please request a quote and we'll send you the price.",
@@ -157,7 +176,7 @@ def add_to_cart():
 
     cart = _get_cart()
 
-    line_key = _make_line_key(item.id, variant)
+    line_key = _make_line_key(item.id, variant, line_method)
     cart[line_key] = cart.get(line_key, 0) + qty
 
     _save_cart(cart)
@@ -181,7 +200,7 @@ def update_cart():
     else:
         # Make sure the product still exists and is active
         try:
-            item_id, _ = _parse_line_key(line_key)
+            item_id, _variant, _method = _parse_line_key(line_key)
             item = Product.query.get(item_id)
 
             if not item or not item.active:
@@ -414,6 +433,11 @@ def checkout():
                         + (
                             f" — {d['variant']}"
                             if d.get("variant")
+                            else ""
+                        )
+                        + (
+                            f" ({d['method_label']})"
+                            if d.get("method_label")
                             else ""
                         )
                     ),
