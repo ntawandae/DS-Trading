@@ -54,17 +54,22 @@ def convert_quotation_to_sale(quote, source="admin"):
     return sale
 
 
+def _stock_units(item):
+    """Units of this order line that were drawn from local stock (the rest ship from China)."""
+    return (item.quantity or 0) if item.stock_reserved is None else item.stock_reserved
+
+
 def release_stock(sale):
     """Give the stock reserved by an online order back to the catalog."""
     for item in sale.items:
         if item.product_id and item.product:
-            item.product.quantity = (item.product.quantity or 0) + (item.quantity or 0)
+            item.product.quantity = (item.product.quantity or 0) + _stock_units(item)
 
 
 def reserve_stock(sale):
     """Take stock for an order that is being reinstated after cancellation.
     Returns False (and changes nothing) if there isn't enough stock."""
-    needed = [(i.product, i.quantity or 0) for i in sale.items if i.product_id and i.product]
+    needed = [(i.product, _stock_units(i)) for i in sale.items if i.product_id and i.product]
     if any((p.quantity or 0) < q for p, q in needed):
         return False
     for p, q in needed:

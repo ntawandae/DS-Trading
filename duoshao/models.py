@@ -249,6 +249,9 @@ class SaleItem(db.Model):
     description = db.Column(db.String(200), nullable=False)
     quantity = db.Column(db.Float, default=1)
     unit_price_usd = db.Column(db.Float, default=0)
+    # How many units were taken from local (Zambia/Zimbabwe) stock when the order was placed.
+    # The rest ship from China. NULL on older orders = the whole quantity came from stock.
+    stock_reserved = db.Column(db.Float)
 
     product = db.relationship("Product")
 

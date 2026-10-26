@@ -5,6 +5,7 @@ from flask import Flask
 from flask_login import LoginManager
 from supabase import create_client
 from .models import db, User, Notification
+from .textfmt import format_description
 
 # Load environment variables from a .env file in the project root, if present.
 # This is the file to edit for API keys / credentials — no code changes needed.
@@ -172,6 +173,8 @@ def create_app():
             app.config["SUPABASE_BUCKET"]
         ).get_public_url(path)
 
+    app.add_template_filter(format_description, "format_description")
+
     @app.template_global()
     def asset_version(static_relpath):
         """Returns the file's last-modified time as a cache-busting query string value."""
@@ -209,9 +212,13 @@ def create_app():
 
         # create_all() never alters existing tables, so add columns introduced later.
         from sqlalchemy import inspect, text
-        existing_cols = {c["name"] for c in inspect(db.engine).get_columns("stock_item")}
-        if "view_count" not in existing_cols:
-            db.session.execute(text("ALTER TABLE stock_item ADD COLUMN view_count INTEGER DEFAULT 0"))
-            db.session.commit()
+        insp = inspect(db.engine)
+        for table, column, ddl in (
+            ("stock_item", "view_count", "INTEGER DEFAULT 0"),
+            ("sale_item", "stock_reserved", "FLOAT"),
+        ):
+            if column not in {c["name"] for c in insp.get_columns(table)}:
+                db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+                db.session.commit()
 
     return app
