@@ -48,8 +48,8 @@
           <span class="badge badge-china">China</span>
         {% endif %}
       </div>
-      {% if item.unit_price_usd %}
-      <div class="product-card-price">${{ "%.2f"|format(item.unit_price_usd) }}</div>
+      {% if item.display_price %}
+      <div class="product-card-price">{% if item.price_varies %}<span class="price-from">From </span>{% endif %}${{ "%.2f"|format(item.display_price) }}</div>
       {% endif %}
     </div>
   </a>
