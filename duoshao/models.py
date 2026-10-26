@@ -105,12 +105,69 @@ class Product(db.Model):
             return "air"
         return "both"
 
+    # ---- Variants -------------------------------------------------------------------------
+    # variant_options is stored as comma-separated entries. An entry is either a plain name
+    # ("Red") or a name with its own price ("128GB=520.00"). Options without a price use the
+    # product's base price. Old data (plain names only) keeps working unchanged.
+
+    @property
+    def variant_pairs(self):
+        """[{'name': '128GB', 'price': 520.0 or None}, ...] in the order the admin entered them."""
+        pairs = []
+        if not self.variant_options:
+            return pairs
+        for part in self.variant_options.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            name, sep, raw = part.partition("=")
+            name = name.strip()
+            if not name:
+                continue
+            price = None
+            if sep:
+                try:
+                    price = float(raw.strip().lstrip("$"))
+                except ValueError:
+                    price = None
+                if price is not None and price <= 0:
+                    price = None
+            pairs.append({"name": name, "price": price})
+        return pairs
+
     @property
     def variant_choices(self):
-        """List of variant option strings, or [] if this product doesn't have variants."""
-        if not self.variant_options:
-            return []
-        return [v.strip() for v in self.variant_options.split(",") if v.strip()]
+        """List of variant option names, or [] if this product doesn't have variants."""
+        return [p["name"] for p in self.variant_pairs]
+
+    def price_for_variant(self, variant=None):
+        """What the customer pays for this option (falls back to the base price)."""
+        if variant:
+            for p in self.variant_pairs:
+                if p["name"] == variant and p["price"]:
+                    return p["price"]
+        return self.unit_price_usd or 0
+
+    @property
+    def _all_prices(self):
+        pairs = self.variant_pairs
+        prices = [self.price_for_variant(p["name"]) for p in pairs] if pairs else [self.unit_price_usd or 0]
+        return [p for p in prices if p and p > 0]
+
+    @property
+    def is_priced(self):
+        """True if the customer can buy at least one version of this product online."""
+        return bool(self._all_prices)
+
+    @property
+    def display_price(self):
+        """Lowest price across all options (the 'From' price)."""
+        prices = self._all_prices
+        return min(prices) if prices else 0
+
+    @property
+    def price_varies(self):
+        return len(set(self._all_prices)) > 1
 
     @property
     def gallery_filenames(self):
