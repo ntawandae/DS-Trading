@@ -38,7 +38,11 @@ a:hover { color: var(--gold-dark); }
   background: var(--navy);
   padding: 14px 0;
   border-bottom: 3px solid var(--gold);
+  position: sticky; top: 0; z-index: 200;
+  transition: transform 0.25s ease;
 }
+.public-nav.nav-hidden { transform: translateY(-100%); }
+html { scroll-padding-top: 70px; }
 .public-nav .container { display: flex; align-items: center; justify-content: space-between; position: relative; }
 .public-nav img.logo { height: 34px; }
 .public-nav .nav-links a {
@@ -190,6 +194,7 @@ a:hover { color: var(--gold-dark); }
 }
 .badge-instock { background: #e4f2e9; color: var(--success); }
 .badge-sourced { background: #fdf1de; color: var(--warn); }
+.badge-china { background: #fdeceb; color: #b3261e; }
 .badge-location { background: #eef1f7; color: var(--navy); }
 .badge-new { background: #e5ecfb; color: #2456c7; }
 .badge-progress { background: #fdf1de; color: var(--warn); }
@@ -219,6 +224,25 @@ a:hover { color: var(--gold-dark); }
 .product-detail-info h1 { font-size: 24px; margin-bottom: 4px; }
 .product-detail-price { font-family: Georgia, serif; font-weight: bold; color: var(--gold-dark); font-size: 30px; margin: 12px 0; }
 .product-detail-desc { font-size: 14px; color: var(--lgrey); line-height: 1.7; margin-bottom: 20px; }
+.product-detail-desc p { margin: 0 0 12px; }
+.product-detail-desc ul { margin: 0 0 14px; padding-left: 20px; }
+.product-detail-desc li { margin-bottom: 6px; }
+.product-detail-desc strong { color: var(--navy); }
+.china-note { font-size: 12.5px; color: var(--lgrey); background: #faf7f0; border-left: 3px solid var(--gold); padding: 10px 14px; border-radius: 3px; margin-bottom: 18px; line-height: 1.6; }
+.link-button { display: block; margin: 12px auto 0; background: none; border: none; color: var(--navy); font-size: 12.5px; text-decoration: underline; cursor: pointer; font-family: inherit; }
+.link-button:hover { color: var(--gold-dark); }
+
+/* ---------- Back to top ---------- */
+.back-to-top {
+  position: fixed; right: 18px; bottom: 18px; z-index: 150;
+  width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--navy); color: var(--gold); box-shadow: 0 3px 10px rgba(0,0,0,0.28);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; visibility: hidden; transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+}
+.back-to-top.visible { opacity: 1; visibility: visible; transform: none; }
+.back-to-top:hover { background: var(--gold); color: var(--navy); }
 
 .variant-picker { margin-bottom: 18px; }
 .variant-label { display: block; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--gold-dark); margin-bottom: 8px; font-weight: bold; }
