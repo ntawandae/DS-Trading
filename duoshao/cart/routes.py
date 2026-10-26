@@ -82,7 +82,14 @@ def _cart_items_detailed():
         if not item or not item.active:
             continue
 
-        price = item.unit_price_usd or 0
+        # The option must still exist (an option the admin removed, or a stale/tampered
+        # key, drops out of the cart rather than being charged at the wrong price).
+        choices = item.variant_choices
+        if (choices and variant not in choices) or (not choices and variant):
+            continue
+
+        # Price always comes from the database, per option — never from the browser.
+        price = item.price_for_variant(variant)
 
         cleaned_cart[line_key] = qty
 
@@ -90,6 +97,7 @@ def _cart_items_detailed():
             "item": item,
             "variant": variant,
             "qty": qty,
+            "unit_price": price,
             "line_total": round(price * qty, 2),
             "line_key": line_key,
         })
@@ -126,10 +134,19 @@ def add_to_cart():
     ref_base = (request.referrer or url_for("public.home")).split("#")[0]
     anchor_redirect = redirect(f"{ref_base}#product-{item.id}")
 
+    # Each option has its own price (or uses the base price).
+    choices = item.variant_choices
+    if choices:
+        if variant not in choices:
+            flash("Please choose an option before adding this item to your cart.", "error")
+            return anchor_redirect
+    else:
+        variant = ""
+
     # Items not held in local stock are ordered from China, so they only need a price.
-    if not item.unit_price_usd:
+    if not item.price_for_variant(variant):
         flash(
-            f"{item.name} needs a quotation first "
+            f"{item.name}{' — ' + variant if variant else ''} needs a quotation first "
             f"— please request a quote and we'll send you the price.",
             "error",
         )
@@ -401,7 +418,7 @@ def checkout():
                         )
                     ),
                     quantity=d["qty"],
-                    unit_price_usd=d["item"].unit_price_usd or 0,
+                    unit_price_usd=d["unit_price"] or 0,
                     # Only what's physically in stock is reserved; the rest comes from China.
                     stock_reserved=min(d["qty"], max(0, d["item"].quantity or 0)),
                 )
