@@ -126,10 +126,11 @@ def add_to_cart():
     ref_base = (request.referrer or url_for("public.home")).split("#")[0]
     anchor_redirect = redirect(f"{ref_base}#product-{item.id}")
 
-    if item.availability != "in_stock" or not item.unit_price_usd:
+    # Items not held in local stock are ordered from China, so they only need a price.
+    if not item.unit_price_usd:
         flash(
-            f"{item.name} isn't available for direct purchase "
-            f"— please submit a sourcing request instead.",
+            f"{item.name} needs a quotation first "
+            f"— please request a quote and we'll send you the price.",
             "error",
         )
         return anchor_redirect
@@ -401,6 +402,8 @@ def checkout():
                     ),
                     quantity=d["qty"],
                     unit_price_usd=d["item"].unit_price_usd or 0,
+                    # Only what's physically in stock is reserved; the rest comes from China.
+                    stock_reserved=min(d["qty"], max(0, d["item"].quantity or 0)),
                 )
             )
 
