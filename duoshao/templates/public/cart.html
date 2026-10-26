@@ -12,7 +12,7 @@
         {% for d in cart_items %}
         <tr>
           <td>{{ d.item.name }}{% if d.variant %}<br><span class="muted" style="font-size:12px;">{{ d.variant }}</span>{% endif %}</td>
-          <td>${{ "%.2f"|format(d.item.unit_price_usd) }}</td>
+          <td>${{ "%.2f"|format(d.unit_price) }}</td>
           <td>
             <form method="POST" action="{{ url_for('cart.update_cart') }}" style="display:flex; gap:6px;">
               <input type="hidden" name="line_key" value="{{ d.line_key }}">
