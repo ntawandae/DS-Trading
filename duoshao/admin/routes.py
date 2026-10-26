@@ -63,9 +63,36 @@ def restrict_to_staff():
 
 
 def catalog_price_map():
-    """Small JSON-able map of product name -> price, for JS autofill on forms."""
-    items = Product.query.filter_by(active=True).all()
-    return {i.name: (i.unit_price_usd or 0) for i in items}
+    """Small JSON-able map of product name -> price, for JS autofill on forms.
+    Options with their own price are included as "Name — Option"."""
+    prices = {}
+    for i in Product.query.filter_by(active=True).all():
+        prices[i.name] = i.unit_price_usd or i.display_price or 0
+        for v in i.variant_pairs:
+            prices[f"{i.name} — {v['name']}"] = i.price_for_variant(v["name"])
+    return prices
+
+
+def variant_options_from_form():
+    """Build the stored variant_options string from the product form's option rows
+    (variant_name[] + variant_price[]). Option names can't contain commas or '='."""
+    names = request.form.getlist("variant_name")
+    prices = request.form.getlist("variant_price")
+    if not names:  # older form / raw text field
+        return request.form.get("variant_options", "").strip() or None
+    parts, seen = [], set()
+    for idx, raw_name in enumerate(names):
+        name = " ".join(raw_name.replace(",", " ").replace("=", " ").split())
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        raw_price = (prices[idx] if idx < len(prices) else "").strip().lstrip("$")
+        try:
+            price = float(raw_price)
+        except ValueError:
+            price = 0
+        parts.append(f"{name}={price:.2f}" if price > 0 else name)
+    return ", ".join(parts) or None
 
 
 # ---------- Supabase Storage ----------
@@ -441,10 +468,7 @@ def products():
                 "",
             ).strip() or None,
 
-            variant_options=request.form.get(
-                "variant_options",
-                "",
-            ).strip() or None,
+            variant_options=variant_options_from_form(),
 
             location=request.form.get(
                 "location",
@@ -686,13 +710,7 @@ def products_edit(item_id):
             or None
         )
 
-        item.variant_options = (
-            request.form.get(
-                "variant_options",
-                "",
-            ).strip()
-            or None
-        )
+        item.variant_options = variant_options_from_form()
 
         item.location = (
             request.form.get(
