@@ -55,7 +55,11 @@
 
       {% if item.availability != 'in_stock' %}
       <div class="china-note">
-        <strong>Ordered from China.</strong> Typical delivery: air 10&ndash;15 days, sea 45&ndash;60 days.
+        {% set mode = item.effective_shipping_mode %}
+        <strong>Ordered from China.</strong>
+        {% if mode == 'air' %}Shipped by air &mdash; typically 10&ndash;15 days.
+        {% elif mode == 'sea' %}Shipped by sea &mdash; typically 45&ndash;60 days.
+        {% else %}Air shipping 10&ndash;15 days, sea shipping 45&ndash;60 days.{% endif %}
         Final shipping is based on actual packaged weight/volume.
       </div>
       {% endif %}
@@ -89,11 +93,11 @@
           <button type="submit" name="action" value="buy_now" class="btn btn-gold" style="flex:1;">Buy Now</button>
         </div>
         {% else %}
-        <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
-          <a href="{{ url_for('public.sourcing_request') }}?product={{ item.name|urlencode }}" class="btn btn-outline" style="flex:1; text-align:center;">Request Quote</a>
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button type="submit" name="action" value="add" class="btn btn-outline" style="flex:1;">Add to Cart</button>
           <button type="submit" name="action" value="buy_now" class="btn btn-gold" style="flex:1;">Place Order</button>
         </div>
-        <button type="submit" name="action" value="add" class="link-button">or add to cart and keep browsing</button>
+        <a href="{{ url_for('public.sourcing_request') }}?product={{ item.name|urlencode }}" class="btn btn-navy" style="display:block; width:100%; text-align:center; margin-top:10px; box-sizing:border-box;">Request Quote</a>
         {% endif %}
       </form>
       {% else %}
