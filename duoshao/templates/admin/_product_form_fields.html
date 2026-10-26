@@ -36,6 +36,16 @@
     <option value="Zimbabwe" {{ 'selected' if item and item.location == 'Zimbabwe' }}>Zimbabwe</option>
   </select>
 </div>
+<div class="form-group">
+  <label>Shipping from China — shown to clients</label>
+  <select name="shipping_mode">
+    <option value="" {{ 'selected' if not item or not item.shipping_mode }}>Automatic (air only for phones, laptops, cameras &amp; consoles; both for the rest)</option>
+    <option value="air" {{ 'selected' if item and item.shipping_mode == 'air' }}>Air only (10–15 days)</option>
+    <option value="sea" {{ 'selected' if item and item.shipping_mode == 'sea' }}>Sea only (45–60 days)</option>
+    <option value="both" {{ 'selected' if item and item.shipping_mode == 'both' }}>Air &amp; Sea (show both)</option>
+  </select>
+  <p class="muted" style="margin-top:4px; font-size:12px;">Only appears on items that aren't in local stock.</p>
+</div>
 
 {% if item and item.gallery_filenames %}
 <div class="form-group">
