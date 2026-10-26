@@ -12,7 +12,8 @@
     <input type="text" name="sku" value="{{ item.sku if item else '' }}" placeholder="Leave blank to auto-generate">
   </div>
 </div>
-<div class="form-group"><label>Description</label><textarea name="description">{{ item.description if item else '' }}</textarea></div>
+<div class="form-group"><label>Description</label><textarea name="description" rows="8">{{ item.description if item else '' }}</textarea>
+  <p class="muted" style="margin-top:4px; font-size:12px;">Tip: leave a blank line between paragraphs, start a line with <code>-</code> for a bullet list, and write specs as <code>Storage: 64GB</code> (the label is bolded automatically).</p></div>
 <div class="form-row">
   <div class="form-group"><label>Quantity in Stock</label><input type="number" name="quantity" value="{{ item.quantity if item else 0 }}"></div>
   <div class="form-group"><label>Reorder Level</label><input type="number" name="reorder_level" value="{{ item.reorder_level if item else 5 }}"></div>
