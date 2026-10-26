@@ -87,8 +87,23 @@ class Product(db.Model):
     gallery_images = db.Column(db.Text)  # comma-separated additional image filenames, shown alongside the main photo
     location = db.Column(db.String(20))  # Zambia / Zimbabwe — where this stock is physically held
     view_count = db.Column(db.Integer, default=0)  # unique-per-visitor product page views; feeds homepage ordering
+    shipping_mode = db.Column(db.String(10))  # air / sea / both; blank = automatic by category
+
+    # Categories that only ever ship by air from China (matched as substrings, case-insensitive).
+    AIR_ONLY_CATEGORY_WORDS = ("phone", "laptop", "camera", "gaming", "console")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def effective_shipping_mode(self):
+        """'air', 'sea' or 'both'. An explicit choice on the product wins; otherwise phones, laptops,
+        cameras and gaming consoles are air-only and everything else shows both options."""
+        if self.shipping_mode in ("air", "sea", "both"):
+            return self.shipping_mode
+        cat = (self.category or "").lower()
+        if any(word in cat for word in self.AIR_ONLY_CATEGORY_WORDS):
+            return "air"
+        return "both"
 
     @property
     def variant_choices(self):
