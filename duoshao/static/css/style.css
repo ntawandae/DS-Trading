@@ -194,6 +194,8 @@ html { scroll-padding-top: 70px; }
 }
 .badge-instock { background: #e4f2e9; color: var(--success); }
 .badge-sourced { background: #fdf1de; color: var(--warn); }
+.price-from { font-size: 11px; font-weight: normal; color: var(--lgrey); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .badge-china { background: #fdeceb; color: #b3261e; }
 .badge-location { background: #eef1f7; color: var(--navy); }
 .badge-new { background: #e5ecfb; color: #2456c7; }
