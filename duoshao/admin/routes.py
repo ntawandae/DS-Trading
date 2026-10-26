@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 from supabase import create_client
 
 from ..models import (
+    _to_price,
     db,
     SourcingRequest,
     Product,
@@ -63,35 +64,42 @@ def restrict_to_staff():
 
 
 def catalog_price_map():
-    """Small JSON-able map of product name -> price, for JS autofill on forms.
-    Options with their own price are included as "Name — Option"."""
+    """Small JSON-able map of item label -> price, for JS autofill on the quotation / sale forms.
+    Includes each option ("Name — Option") and, where sea prices exist, "(Sea)" versions."""
     prices = {}
     for i in Product.query.filter_by(active=True).all():
-        prices[i.name] = i.unit_price_usd or i.display_price or 0
-        for v in i.variant_pairs:
-            prices[f"{i.name} — {v['name']}"] = i.price_for_variant(v["name"])
+        for label, price in i.quote_entries():
+            prices[label] = price
     return prices
 
 
 def variant_options_from_form():
     """Build the stored variant_options string from the product form's option rows
-    (variant_name[] + variant_price[]). Option names can't contain commas or '='."""
+    (variant_name[] + variant_price[] for air/standard + variant_sea_price[]).
+    Option names can't contain commas, '=' or '|'."""
     names = request.form.getlist("variant_name")
-    prices = request.form.getlist("variant_price")
+    air_prices = request.form.getlist("variant_price")
+    sea_prices = request.form.getlist("variant_sea_price")
     if not names:  # older form / raw text field
         return request.form.get("variant_options", "").strip() or None
+
+    def price_at(values, idx):
+        return _to_price(values[idx]) if idx < len(values) else None
+
     parts, seen = [], set()
     for idx, raw_name in enumerate(names):
-        name = " ".join(raw_name.replace(",", " ").replace("=", " ").split())
+        name = " ".join(raw_name.replace(",", " ").replace("=", " ").replace("|", " ").split())
         if not name or name.lower() in seen:
             continue
         seen.add(name.lower())
-        raw_price = (prices[idx] if idx < len(prices) else "").strip().lstrip("$")
-        try:
-            price = float(raw_price)
-        except ValueError:
-            price = 0
-        parts.append(f"{name}={price:.2f}" if price > 0 else name)
+        air, sea = price_at(air_prices, idx), price_at(sea_prices, idx)
+        if sea:
+            spec = f"air:{air:.2f};sea:{sea:.2f}" if air else f"sea:{sea:.2f}"
+            parts.append(f"{name}={spec}")
+        elif air:
+            parts.append(f"{name}={air:.2f}")
+        else:
+            parts.append(name)
     return ", ".join(parts) or None
 
 
@@ -463,6 +471,10 @@ def products():
                 request.form.get("unit_price_usd") or 0
             ),
 
+            unit_price_sea_usd=_to_price(
+                request.form.get("unit_price_sea_usd")
+            ),
+
             variant_label=request.form.get(
                 "variant_label",
                 "",
@@ -700,6 +712,10 @@ def products_edit(item_id):
 
         item.unit_price_usd = float(
             request.form.get("unit_price_usd") or 0
+        )
+
+        item.unit_price_sea_usd = _to_price(
+            request.form.get("unit_price_sea_usd")
         )
 
         item.variant_label = (
