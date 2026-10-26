@@ -40,7 +40,10 @@
   <p class="muted" style="margin:-4px 0 10px;">Pick from the catalog (auto-fills price) or type any custom item.</p>
   <datalist id="catalog-options">
     {% for c in catalog_items %}
-    <option value="{{ c.name }}" data-price="{{ c.unit_price_usd or '' }}">
+    <option value="{{ c.name }}" data-price="{{ c.unit_price_usd or c.display_price or '' }}">
+    {% for v in c.variant_pairs %}
+    <option value="{{ c.name }} — {{ v.name }}" data-price="{{ c.price_for_variant(v.name) or '' }}">
+    {% endfor %}
     {% endfor %}
   </datalist>
   <div id="items-wrap">

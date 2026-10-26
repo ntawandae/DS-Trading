@@ -71,7 +71,7 @@
         </td>
         <td>{{ i.quantity }}</td>
         <td>${{ "%.2f"|format(i.unit_cost_usd) }}</td>
-        <td>${{ "%.2f"|format(i.unit_price_usd) }}</td>
+        <td>${{ "%.2f"|format(i.display_price or i.unit_price_usd or 0) }}{% if i.price_varies %} <span class="muted" title="Options have different prices">+</span>{% endif %}</td>
         <td>{{ 'Active' if i.active else 'Hidden' }}</td>
         <td>
           <form method="POST" action="{{ url_for('admin.products_adjust', item_id=i.id) }}" style="display:flex; gap:6px;">
