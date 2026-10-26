@@ -53,4 +53,30 @@
       if (window.innerWidth > 780) closeNav();
     });
   })();
+
+  // Smart header: hides while scrolling down, comes straight back on a small scroll up,
+  // so the menu is always one flick away — no scrolling all the way to the top.
+  (function () {
+    var nav = document.querySelector('.public-nav');
+    var links = document.getElementById('navLinks');
+    if (!nav) return;
+    var lastY = window.scrollY, ticking = false;
+
+    function update() {
+      var y = window.scrollY, delta = y - lastY;
+      var menuOpen = links && links.classList.contains('show');
+      if (y <= 80 || menuOpen) {
+        nav.classList.remove('nav-hidden');
+      } else if (delta > 8) {
+        nav.classList.add('nav-hidden');
+      } else if (delta < -6) {
+        nav.classList.remove('nav-hidden');
+      }
+      if (Math.abs(delta) > 6) lastY = y;
+      ticking = false;
+    }
+    window.addEventListener('scroll', function () {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    }, { passive: true });
+  })();
 </script>

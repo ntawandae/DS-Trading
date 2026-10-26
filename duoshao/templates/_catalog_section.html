@@ -43,10 +43,10 @@
         {% if item.availability == 'in_stock' %}
           <span class="badge badge-instock">In Stock</span>
           {% if item.low_stock %}<span class="badge badge-pending">Only {{ item.quantity }} left</span>{% endif %}
+          {% if item.location %}<span class="badge badge-location">{{ item.location }}</span>{% endif %}
         {% else %}
-          <span class="badge badge-sourced">On Request</span>
+          <span class="badge badge-china">China</span>
         {% endif %}
-        {% if item.location %}<span class="badge badge-location">{{ item.location }}</span>{% endif %}
       </div>
       {% if item.unit_price_usd %}
       <div class="product-card-price">${{ "%.2f"|format(item.unit_price_usd) }}</div>
