@@ -6,6 +6,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 db = SQLAlchemy()
 
 
+def _to_price(raw):
+    """'450', '$450.00' -> 450.0; blank / junk / zero / negative -> None."""
+    try:
+        value = float(str(raw).strip().lstrip("$"))
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 class User(UserMixin, db.Model):
     """Login for all three tiers: admin (management), worker (staff), client (customer portal)."""
     id = db.Column(db.Integer, primary_key=True)
@@ -80,7 +89,8 @@ class Product(db.Model):
     quantity = db.Column(db.Integer, default=0)
     reorder_level = db.Column(db.Integer, default=5)
     unit_cost_usd = db.Column(db.Float, default=0)  # internal cost — never shown publicly
-    unit_price_usd = db.Column(db.Float, default=0)  # what the customer pays
+    unit_price_usd = db.Column(db.Float, default=0)  # what the customer pays (air / standard price)
+    unit_price_sea_usd = db.Column(db.Float)  # optional: base price when shipped by sea (blank = same as unit_price_usd)
     active = db.Column(db.Boolean, default=True)  # visible on the public catalog
     variant_label = db.Column(db.String(40))  # e.g. "Color", "Size" — shown above the picker on the product page
     variant_options = db.Column(db.Text)  # comma-separated choices, e.g. "Red, Blue, Black" — same price/stock for all
@@ -105,14 +115,18 @@ class Product(db.Model):
             return "air"
         return "both"
 
-    # ---- Variants -------------------------------------------------------------------------
-    # variant_options is stored as comma-separated entries. An entry is either a plain name
-    # ("Red") or a name with its own price ("128GB=520.00"). Options without a price use the
-    # product's base price. Old data (plain names only) keeps working unchanged.
+    # ---- Variants & pricing --------------------------------------------------------------
+    # variant_options is stored as comma-separated entries. An entry is one of:
+    #   Red                         name only            -> uses the product's base price
+    #   128GB=520.00                one price            -> same price by air and by sea
+    #   Manual=air:450.00;sea:380.00  separate prices    -> air price / sea price
+    # (either side of the last form may be left out). Older data keeps working unchanged.
+    # Items held in local stock always use the air / standard price; the air-vs-sea choice only
+    # applies to items ordered from China.
 
     @property
     def variant_pairs(self):
-        """[{'name': '128GB', 'price': 520.0 or None}, ...] in the order the admin entered them."""
+        """[{'name', 'air', 'sea', 'price'}] in the order the admin entered them (price = air)."""
         pairs = []
         if not self.variant_options:
             return pairs
@@ -124,15 +138,20 @@ class Product(db.Model):
             name = name.strip()
             if not name:
                 continue
-            price = None
+            air = sea = None
             if sep:
-                try:
-                    price = float(raw.strip().lstrip("$"))
-                except ValueError:
-                    price = None
-                if price is not None and price <= 0:
-                    price = None
-            pairs.append({"name": name, "price": price})
+                raw = raw.strip()
+                if ":" in raw:
+                    for seg in raw.split(";"):
+                        key, _, val = seg.partition(":")
+                        key = key.strip().lower()
+                        if key == "air":
+                            air = _to_price(val)
+                        elif key == "sea":
+                            sea = _to_price(val)
+                else:
+                    air = _to_price(raw)
+            pairs.append({"name": name, "air": air, "sea": sea, "price": air})
         return pairs
 
     @property
@@ -140,18 +159,38 @@ class Product(db.Model):
         """List of variant option names, or [] if this product doesn't have variants."""
         return [p["name"] for p in self.variant_pairs]
 
-    def price_for_variant(self, variant=None):
-        """What the customer pays for this option (falls back to the base price)."""
+    @property
+    def shipping_methods(self):
+        mode = self.effective_shipping_mode
+        return ["air", "sea"] if mode == "both" else [mode]
+
+    @property
+    def pricing_methods(self):
+        """Shipping methods that can change the price. In-stock items have one standard price."""
+        return ["air"] if (self.quantity or 0) > 0 else self.shipping_methods
+
+    @property
+    def default_method(self):
+        return self.pricing_methods[0]
+
+    def price_for_variant(self, variant=None, method=None):
+        """What the customer pays for this option by this shipping method.
+        Air: option's air price, else the base price.
+        Sea: option's sea price, else its air price, else the base sea price, else the base price."""
+        method = method or self.default_method
+        base_air = self.unit_price_usd or 0
+        base_sea = self.unit_price_sea_usd or base_air
+        v = None
         if variant:
-            for p in self.variant_pairs:
-                if p["name"] == variant and p["price"]:
-                    return p["price"]
-        return self.unit_price_usd or 0
+            v = next((p for p in self.variant_pairs if p["name"] == variant), None)
+        if method == "sea":
+            return (v["sea"] or v["air"] or base_sea) if v else base_sea
+        return (v["air"] or base_air) if v else base_air
 
     @property
     def _all_prices(self):
-        pairs = self.variant_pairs
-        prices = [self.price_for_variant(p["name"]) for p in pairs] if pairs else [self.unit_price_usd or 0]
+        names = self.variant_choices or [None]
+        prices = [self.price_for_variant(n, mth) for n in names for mth in self.pricing_methods]
         return [p for p in prices if p and p > 0]
 
     @property
@@ -161,13 +200,31 @@ class Product(db.Model):
 
     @property
     def display_price(self):
-        """Lowest price across all options (the 'From' price)."""
+        """Lowest price across all options and shipping methods (the 'From' price)."""
         prices = self._all_prices
         return min(prices) if prices else 0
 
     @property
     def price_varies(self):
         return len(set(self._all_prices)) > 1
+
+    @property
+    def has_sea_pricing(self):
+        return bool(self.unit_price_sea_usd) or any(p["sea"] for p in self.variant_pairs)
+
+    def quote_entries(self):
+        """(label, price) pairs for the admin quotation / sale item pickers."""
+        entries = [(self.name, self.price_for_variant(None) or self.display_price or 0)]
+        pairs = self.variant_pairs
+        for v in pairs:
+            entries.append((f"{self.name} — {v['name']}", self.price_for_variant(v["name"])))
+        if self.has_sea_pricing and self.default_method == "air" and "sea" in self.shipping_methods:
+            if pairs:
+                for v in pairs:
+                    entries.append((f"{self.name} — {v['name']} (Sea)", self.price_for_variant(v["name"], "sea")))
+            else:
+                entries.append((f"{self.name} (Sea)", self.price_for_variant(None, "sea")))
+        return entries
 
     @property
     def gallery_filenames(self):

@@ -217,6 +217,7 @@ def create_app():
             ("stock_item", "view_count", "INTEGER DEFAULT 0"),
             ("sale_item", "stock_reserved", "FLOAT"),
             ("stock_item", "shipping_mode", "VARCHAR(10)"),
+            ("stock_item", "unit_price_sea_usd", "FLOAT"),
         ):
             if column not in {c["name"] for c in insp.get_columns(table)}:
                 db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
