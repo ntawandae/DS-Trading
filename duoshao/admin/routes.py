@@ -450,6 +450,12 @@ def products():
                 "location",
                 "",
             ).strip() or None,
+
+            shipping_mode=(
+                request.form.get("shipping_mode", "").strip()
+                if request.form.get("shipping_mode", "").strip() in ("air", "sea", "both")
+                else None
+            ),
         )
 
         db.session.add(item)
@@ -695,6 +701,9 @@ def products_edit(item_id):
             ).strip()
             or None
         )
+
+        _mode = request.form.get("shipping_mode", "").strip()
+        item.shipping_mode = _mode if _mode in ("air", "sea", "both") else None
 
         # ---------------------------------------
         # Replace main product image
