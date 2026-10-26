@@ -43,8 +43,8 @@
 
       {% if item.is_priced %}
       {% set first_variant = item.variant_choices[0] if item.variant_choices else '' %}
-      {% set first_price = item.price_for_variant(first_variant) %}
-      <div class="product-detail-price" id="productPrice">{% if first_price %}${{ "%.2f"|format(first_price) }}{% else %}From ${{ "%.2f"|format(item.display_price) }}{% endif %}</div>
+      {% set first_price = item.price_for_variant(first_variant, item.default_method) %}
+      <div class="product-detail-price" id="productPrice" data-air="{{ '%.2f'|format(item.price_for_variant(None, 'air')) }}" data-sea="{{ '%.2f'|format(item.price_for_variant(None, 'sea')) }}">{% if first_price %}${{ "%.2f"|format(first_price) }}{% else %}From ${{ "%.2f"|format(item.display_price) }}{% endif %}</div>
       {% endif %}
 
       <div class="product-detail-desc">
@@ -70,15 +70,29 @@
       <form method="POST" action="{{ url_for('cart.add_to_cart') }}">
         <input type="hidden" name="item_id" value="{{ item.id }}">
 
+        {% if item.availability != 'in_stock' %}
+          {% if item.pricing_methods|length > 1 %}
+          <div class="variant-picker">
+            <label class="variant-label">Shipping method</label>
+            <div class="variant-options">
+              <label class="variant-pill"><input type="radio" name="shipping_method" value="air" checked><span>Air &middot; 10&ndash;15 days</span></label>
+              <label class="variant-pill"><input type="radio" name="shipping_method" value="sea"><span>Sea &middot; 45&ndash;60 days</span></label>
+            </div>
+          </div>
+          {% else %}
+          <input type="hidden" name="shipping_method" value="{{ item.pricing_methods[0] }}">
+          {% endif %}
+        {% endif %}
+
         {% if item.variant_choices %}
         <div class="variant-picker">
           <label class="variant-label">{{ item.variant_label or "Option" }}</label>
           <div class="variant-options">
             {% for v in item.variant_pairs %}
-            {% set vp = item.price_for_variant(v.name) %}
+            {% set vp = item.price_for_variant(v.name, item.default_method) %}
             <label class="variant-pill">
-              <input type="radio" name="variant" value="{{ v.name }}" data-price="{{ '%.2f'|format(vp) }}" {{ 'checked' if loop.first }}>
-              <span>{{ v.name }}{% if item.price_varies and vp %} &middot; ${{ "%.2f"|format(vp) }}{% endif %}</span>
+              <input type="radio" name="variant" value="{{ v.name }}" data-air="{{ '%.2f'|format(item.price_for_variant(v.name, 'air')) }}" data-sea="{{ '%.2f'|format(item.price_for_variant(v.name, 'sea')) }}" {{ 'checked' if loop.first }}>
+              <span>{{ v.name }}<span class="vp-price">{% if item.price_varies and vp %} &middot; ${{ "%.2f"|format(vp) }}{% endif %}</span></span>
             </label>
             {% endfor %}
           </div>
@@ -111,20 +125,43 @@
 </div>
 
 <script>
-// Show the price of the selected option; options with no price can't be ordered online (quote only).
+// Keeps the price in step with the chosen option and shipping method. A combination with no price
+// can't be ordered online (quote only). Prices shown here are for display; the server re-prices the
+// cart from the database.
 (function () {
   var priceEl = document.getElementById('productPrice');
-  var radios = document.querySelectorAll('input[name="variant"]');
-  if (!priceEl || !radios.length) return;
+  if (!priceEl) return;
+  var variantRadios = document.querySelectorAll('input[name="variant"]');
   var buttons = document.querySelectorAll('button[name="action"]');
+  var showPillPrices = {{ 'true' if item.price_varies else 'false' }};
+
+  function method() {
+    var r = document.querySelector('input[name="shipping_method"]:checked') ||
+            document.querySelector('input[type="hidden"][name="shipping_method"]');
+    return r ? r.value : 'air';
+  }
+  function priceOf(el) { return parseFloat(el.dataset[method()]) || 0; }
+
   function apply() {
-    var r = document.querySelector('input[name="variant"]:checked');
-    if (!r) return;
-    var price = parseFloat(r.dataset.price) || 0;
+    var price;
+    if (variantRadios.length) {
+      var chosen = document.querySelector('input[name="variant"]:checked');
+      price = chosen ? priceOf(chosen) : 0;
+      variantRadios.forEach(function (v) {
+        var span = v.parentNode.querySelector('.vp-price');
+        var p = priceOf(v);
+        if (span) span.textContent = (showPillPrices && p > 0) ? ' \u00b7 $' + p.toFixed(2) : '';
+      });
+    } else {
+      price = priceOf(priceEl);
+    }
     priceEl.textContent = price > 0 ? '$' + price.toFixed(2) : 'Quote required';
     buttons.forEach(function (b) { b.disabled = price <= 0; });
   }
-  radios.forEach(function (r) { r.addEventListener('change', apply); });
+
+  document.querySelectorAll('input[name="variant"], input[name="shipping_method"]').forEach(function (el) {
+    el.addEventListener('change', apply);
+  });
   apply();
 })();
 </script>

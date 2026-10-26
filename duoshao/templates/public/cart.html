@@ -11,7 +11,7 @@
       <tbody>
         {% for d in cart_items %}
         <tr>
-          <td>{{ d.item.name }}{% if d.variant %}<br><span class="muted" style="font-size:12px;">{{ d.variant }}</span>{% endif %}</td>
+          <td>{{ d.item.name }}{% if d.variant or d.method_label %}<br><span class="muted" style="font-size:12px;">{{ d.variant }}{% if d.variant and d.method_label %} &middot; {% endif %}{{ d.method_label }}</span>{% endif %}</td>
           <td>${{ "%.2f"|format(d.unit_price) }}</td>
           <td>
             <form method="POST" action="{{ url_for('cart.update_cart') }}" style="display:flex; gap:6px;">

@@ -72,7 +72,7 @@
       {% for d in cart_items %}
       <div style="padding:10px 0; border-bottom:1px solid #f0f0f0; font-size:13px;">
         <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-          <span>{{ d.item.name }}{{ ' (' ~ d.variant ~ ')' if d.variant }}</span>
+          <span>{{ d.item.name }}{{ ' (' ~ d.variant ~ ')' if d.variant }}{{ ' · ' ~ d.method_label if d.method_label }}</span>
           <span>${{ "%.2f"|format(d.line_total) }}</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
