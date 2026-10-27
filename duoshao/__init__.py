@@ -211,16 +211,27 @@ def create_app():
         db.create_all()
 
         # create_all() never alters existing tables, so add columns introduced later.
+        # Each column is added on its own: one failure (or another worker adding the same column
+        # at the same moment) is logged and skipped instead of blocking the rest.
         from sqlalchemy import inspect, text
-        insp = inspect(db.engine)
+        is_postgres = db.engine.dialect.name == "postgresql"
+        true_literal = "TRUE" if is_postgres else "1"
+        if_not_exists = "IF NOT EXISTS " if is_postgres else ""
         for table, column, ddl in (
             ("stock_item", "view_count", "INTEGER DEFAULT 0"),
             ("sale_item", "stock_reserved", "FLOAT"),
             ("stock_item", "shipping_mode", "VARCHAR(10)"),
             ("stock_item", "unit_price_sea_usd", "FLOAT"),
+            ("stock_item", "china_orderable", f"BOOLEAN DEFAULT {true_literal}"),
         ):
-            if column not in {c["name"] for c in insp.get_columns(table)}:
-                db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+            try:
+                if column in {c["name"] for c in inspect(db.engine).get_columns(table)}:
+                    continue
+                db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {if_not_exists}{column} {ddl}"))
                 db.session.commit()
+                app.logger.info("Added column %s.%s", table, column)
+            except Exception:
+                db.session.rollback()
+                app.logger.exception("Could not add column %s.%s", table, column)
 
     return app
