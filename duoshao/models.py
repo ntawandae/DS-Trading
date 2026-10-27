@@ -98,6 +98,9 @@ class Product(db.Model):
     location = db.Column(db.String(20))  # Zambia / Zimbabwe — where this stock is physically held
     view_count = db.Column(db.Integer, default=0)  # unique-per-visitor product page views; feeds homepage ordering
     shipping_mode = db.Column(db.String(10))  # air / sea / both; blank = automatic by category
+    # May clients order this from China when local stock is 0? Existing products default to yes;
+    # items auto-created from quotations are switched off (quote-only).
+    china_orderable = db.Column(db.Boolean, default=True)
 
     # Categories that only ever ship by air from China (matched as substrings, case-insensitive).
     AIR_ONLY_CATEGORY_WORDS = ("phone", "laptop", "camera", "gaming", "console")
@@ -192,6 +195,18 @@ class Product(db.Model):
         names = self.variant_choices or [None]
         prices = [self.price_for_variant(n, mth) for n in names for mth in self.pricing_methods]
         return [p for p in prices if p and p > 0]
+
+    @property
+    def can_order_from_china(self):
+        return self.china_orderable is not False
+
+    @property
+    def can_buy_online(self):
+        """Add to cart / buy is offered: in stock, or out of stock but allowed as a China order.
+        Always needs a price."""
+        if not self.is_priced:
+            return False
+        return (self.quantity or 0) > 0 or self.can_order_from_china
 
     @property
     def is_priced(self):
@@ -526,6 +541,40 @@ class FloatTransaction(db.Model):
     description = db.Column(db.String(200), nullable=False)
     amount_usd = db.Column(db.Float, nullable=False)  # positive = cash in, negative = cash out
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CommitmentFee(db.Model):
+    """Non-refundable fee paid up front to start sourcing (no receipt is issued).
+
+    It counts as revenue the day it is received. If the client goes on to order, the fee is
+    credited against their total as a negative "Commitment fee credit" line, so nothing is
+    counted twice. If they never order, the fee simply stays as income."""
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customer.id"), nullable=True)
+    payer_name = db.Column(db.String(150))  # used when there's no customer record
+    amount_usd = db.Column(db.Float, nullable=False)
+    method = db.Column(db.String(40), default="cash")  # cash / bank_transfer / mobile_money / other
+    received_date = db.Column(db.Date, default=datetime.utcnow)
+    note = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    quotation_id = db.Column(db.Integer, db.ForeignKey("quotation.id"), nullable=True)  # reserved on a quotation
+    sale_id = db.Column(db.Integer, db.ForeignKey("sale.id"), nullable=True)  # credited against this sale
+
+    customer = db.relationship("Customer")
+
+    @property
+    def display_payer(self):
+        if self.customer:
+            return self.customer.name
+        return self.payer_name or "Unnamed"
+
+    @property
+    def status(self):
+        if self.sale_id:
+            return "applied"
+        if self.quotation_id:
+            return "reserved"
+        return "open"
 
 
 # Ordered stages for the manual shipment-tracking timeline.

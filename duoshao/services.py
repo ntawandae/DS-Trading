@@ -1,10 +1,20 @@
 from datetime import date, datetime, timedelta
-from .models import db, Sale, SaleItem, SaleStatusEvent
+from .models import db, Sale, SaleItem, SaleStatusEvent, Product, CommitmentFee
 
 # How long an online order can sit unpaid via PayPal/Card before we release the stock
 # reservation and mark it cancelled. Bank transfer / cash orders are exempt — those are
 # genuinely placed orders awaiting manual follow-up, not abandoned checkouts.
 STALE_ORDER_MINUTES = 30
+
+
+def catalog_label_map():
+    """lowercase label -> Product, for every name the admin item pickers offer ("Can Sealer",
+    "Can Sealer — Manual", ...). Used to link typed/picked lines to real stock items."""
+    labels = {}
+    for product in Product.query.filter_by(active=True).all():
+        for label, _price in product.quote_entries():
+            labels[label.strip().lower()] = product
+    return labels
 
 
 def convert_quotation_to_sale(quote, source="admin"):
@@ -21,12 +31,22 @@ def convert_quotation_to_sale(quote, source="admin"):
     db.session.add(sale)
     db.session.flush()
 
+    label_map = catalog_label_map()
+
     for qi in quote.items:
+        # Link catalog items to stock: take what we actually hold; the rest is sourced.
+        product = label_map.get((qi.description or "").strip().lower()) if (qi.unit_price_usd or 0) > 0 else None
+        reserved = None
+        if product:
+            reserved = min(int(qi.quantity or 0), max(0, product.quantity or 0))
+            product.quantity = (product.quantity or 0) - reserved
         db.session.add(SaleItem(
             sale_id=sale.id,
+            product_id=product.id if product else None,
             description=qi.description,
             quantity=qi.quantity,
             unit_price_usd=qi.unit_price_usd,
+            stock_reserved=reserved,
         ))
 
     if quote.service_fee_usd:
@@ -44,6 +64,10 @@ def convert_quotation_to_sale(quote, source="admin"):
             quantity=1,
             unit_price_usd=quote.shipping_estimate_usd,
         ))
+
+    # A commitment fee held on this quotation is now credited against the sale.
+    for fee in CommitmentFee.query.filter_by(quotation_id=quote.id, sale_id=None).all():
+        fee.sale_id = sale.id
 
     db.session.add(SaleStatusEvent(
         sale_id=sale.id,
