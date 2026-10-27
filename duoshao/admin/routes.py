@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 from supabase import create_client
 
 from ..models import (
+    CommitmentFee,
     _to_price,
     db,
     SourcingRequest,
@@ -40,6 +41,7 @@ from ..models import (
 )
 from ..permissions import admin_required, finance_required, staff_required
 from ..services import (
+    catalog_label_map,
     convert_quotation_to_sale,
     expire_stale_online_orders,
     release_stock,
@@ -71,6 +73,48 @@ def catalog_price_map():
         for label, price in i.quote_entries():
             prices[label] = price
     return prices
+
+
+def open_commitment_fees():
+    """Fees that haven't been credited to a quotation or sale yet (for the pickers)."""
+    return (
+        CommitmentFee.query
+        .filter_by(sale_id=None, quotation_id=None)
+        .order_by(CommitmentFee.received_date.desc(), CommitmentFee.id.desc())
+        .all()
+    )
+
+
+def read_discount_inputs(gross_total):
+    """Read the discount + commitment-fee-credit fields from a sale/quotation form.
+
+    Returns (lines, fee, error): `lines` is [(description, negative_amount)] to add as negative
+    line items, `fee` is the CommitmentFee being credited (or None), `error` is a message or None.
+    Manual discounts are for admin / finance only; any staff member may credit a recorded fee."""
+    lines, fee = [], None
+
+    fee_id = request.form.get("commitment_fee_id")
+    if fee_id:
+        fee = CommitmentFee.query.get(int(fee_id))
+        if not fee or fee.sale_id or fee.quotation_id:
+            return [], None, "That commitment fee has already been used or no longer exists."
+        lines.append((f"Commitment fee credit ({fee.display_payer}, paid {fee.received_date:%d %b %Y})", -round(fee.amount_usd, 2)))
+
+    if current_user.is_finance:
+        try:
+            manual = round(float(request.form.get("discount_usd") or 0), 2)
+        except ValueError:
+            manual = 0
+        if manual < 0:
+            return [], None, "Discount can't be negative."
+        if manual > 0:
+            reason = request.form.get("discount_reason", "").strip()
+            lines.append((f"Discount — {reason}" if reason else "Discount", -manual))
+
+    if -sum(amount for _d, amount in lines) > round(gross_total, 2) + 0.005:
+        return [], None, "The discount and commitment fee credit are more than the total. Please reduce them."
+
+    return lines, fee, None
 
 
 def variant_options_from_form():
@@ -233,8 +277,14 @@ def dashboard():
 
     sales = [s for s in Sale.query.all() if not s.is_cancelled]
 
-    total_revenue = sum(s.total for s in sales)
-    total_received = sum(s.amount_received for s in sales)
+    # Commitment fees are income the day they're received. Sales that used a fee are billed net of
+    # it, so adding all fees to both sides counts each fee exactly once.
+    commitment_fees_total = round(
+        db.session.query(func.coalesce(func.sum(CommitmentFee.amount_usd), 0)).scalar() or 0, 2
+    )
+
+    total_revenue = sum(s.total for s in sales) + commitment_fees_total
+    total_received = sum(s.amount_received for s in sales) + commitment_fees_total
     total_outstanding = round(total_revenue - total_received, 2)
 
     total_expenses = db.session.query(
@@ -278,6 +328,7 @@ def dashboard():
     return render_template(
         "admin/dashboard.html",
         total_revenue=total_revenue,
+        commitment_fees_total=commitment_fees_total,
         total_received=total_received,
         total_outstanding=total_outstanding,
         total_expenses=total_expenses,
@@ -301,13 +352,19 @@ def compute_float_balance():
         Receipt.method == "cash"
     ).scalar()
 
+    cash_in_fees = db.session.query(
+        func.coalesce(func.sum(CommitmentFee.amount_usd), 0)
+    ).filter(
+        CommitmentFee.method == "cash"
+    ).scalar()
+
     cash_out_expenses = db.session.query(
         func.coalesce(func.sum(Expense.amount_usd), 0)
     ).filter(
         Expense.method == "cash"
     ).scalar()
 
-    return round(manual + cash_in - cash_out_expenses, 2)
+    return round(manual + cash_in + cash_in_fees - cash_out_expenses, 2)
 
 
 # ---------- Sourcing requests ----------
@@ -474,6 +531,8 @@ def products():
             unit_price_sea_usd=_to_price(
                 request.form.get("unit_price_sea_usd")
             ),
+
+            china_orderable=request.form.get("china_orderable") == "on",
 
             variant_label=request.form.get(
                 "variant_label",
@@ -718,6 +777,8 @@ def products_edit(item_id):
             request.form.get("unit_price_sea_usd")
         )
 
+        item.china_orderable = request.form.get("china_orderable") == "on"
+
         item.variant_label = (
             request.form.get(
                 "variant_label",
@@ -929,89 +990,89 @@ def sales_new():
     )
 
     if request.method == "POST":
-        customer_id = (
-            request.form.get("customer_id")
-            or None
-        )
+        # ---- 1. read the lines and check stock BEFORE anything is created ----
+        lines = []
+        for desc, qty, price in zip(
+            request.form.getlist("item_description"),
+            request.form.getlist("item_quantity"),
+            request.form.getlist("item_price"),
+        ):
+            if desc.strip():
+                lines.append((desc.strip(), float(qty or 1), float(price or 0)))
+
+        label_map = catalog_label_map()
+        need = {}  # product id -> [product, units on this sale]
+        problems = []
+        for desc, q, _price in lines:
+            product = label_map.get(desc.lower())
+            if not product:
+                continue  # custom line — not stock-tracked
+            if q != int(q) or q <= 0:
+                problems.append(f"{desc}: catalog items must be sold in whole units.")
+                continue
+            need.setdefault(product.id, [product, 0])[1] += int(q)
+
+        for product, units in need.values():
+            have = product.quantity or 0
+            if units > have:
+                problems.append(
+                    f"{product.name}: only {have} in stock but {units} on this sale."
+                    + (" We don't hold it — create a Quotation to source it." if have == 0 else "")
+                )
+
+        subtotal = sum(q * p for _d, q, p in lines)
+        service_fee = round(subtotal * Sale.SERVICE_FEE_RATE, 2) if request.form.get("apply_service_fee") else 0
+        shipping = float(request.form.get("shipping_estimate_usd") or 0)
+
+        discount_lines, credited_fee, discount_error = read_discount_inputs(subtotal + service_fee + shipping)
+        if discount_error:
+            problems.append(discount_error)
+
+        if problems:
+            for message in problems:
+                flash(message, "error")
+            return redirect(url_for("admin.sales_new"))
+
+        # ---- 2. create the sale ----
+        customer_id = request.form.get("customer_id") or None
 
         sale = Sale(
-            customer_id=(
-                int(customer_id)
-                if customer_id
-                else None
-            ),
-
-            customer_name_freetext=request.form.get(
-                "customer_name_freetext",
-                "",
-            ).strip(),
-
+            customer_id=int(customer_id) if customer_id else None,
+            customer_name_freetext=request.form.get("customer_name_freetext", "").strip(),
             date=(
-                datetime.strptime(
-                    request.form.get("date"),
-                    "%Y-%m-%d",
-                ).date()
+                datetime.strptime(request.form.get("date"), "%Y-%m-%d").date()
                 if request.form.get("date")
                 else date.today()
             ),
-
-            notes=request.form.get(
-                "notes",
-                "",
-            ).strip(),
+            notes=request.form.get("notes", "").strip(),
         )
-
         db.session.add(sale)
         db.session.flush()
 
-        descriptions = request.form.getlist(
-            "item_description"
-        )
-
-        qtys = request.form.getlist(
-            "item_quantity"
-        )
-
-        prices = request.form.getlist(
-            "item_price"
-        )
-
-        subtotal = 0.0
-
-        for desc, qty, price in zip(
-            descriptions,
-            qtys,
-            prices,
-        ):
-            if desc.strip():
-                q = float(qty or 1)
-                p = float(price or 0)
-
-                subtotal += q * p
-
-                db.session.add(
-                    SaleItem(
-                        sale_id=sale.id,
-                        description=desc.strip(),
-                        quantity=q,
-                        unit_price_usd=p,
-                    )
+        for desc, q, price in lines:
+            product = label_map.get(desc.lower())
+            if product:
+                # Selling from stock: take it off the shelf and remember how much we took,
+                # so a cancelled sale can put it back.
+                product.quantity = (product.quantity or 0) - int(q)
+            db.session.add(
+                SaleItem(
+                    sale_id=sale.id,
+                    product_id=product.id if product else None,
+                    description=desc,
+                    quantity=q,
+                    unit_price_usd=price,
+                    stock_reserved=int(q) if product else None,
                 )
-
-        if request.form.get(
-            "apply_service_fee"
-        ):
-            sale.service_fee_usd = round(
-                subtotal * Sale.SERVICE_FEE_RATE,
-                2,
             )
 
-        sale.shipping_estimate_usd = float(
-            request.form.get(
-                "shipping_estimate_usd"
-            )
-            or 0
-        )
+        sale.service_fee_usd = service_fee
+        sale.shipping_estimate_usd = shipping
+
+        for description, amount in discount_lines:
+            db.session.add(SaleItem(sale_id=sale.id, description=description, quantity=1, unit_price_usd=amount))
+        if credited_fee:
+            credited_fee.sale_id = sale.id
 
         db.session.commit()
 
@@ -1039,6 +1100,11 @@ def sales_new():
         customers=customers,
         catalog_items=catalog_items,
         catalog_prices=catalog_price_map(),
+        catalog_stock={
+            label: {"id": p.id, "name": p.name, "stock": p.quantity or 0}
+            for label, p in catalog_label_map().items()
+        },
+        open_fees=open_commitment_fees(),
     )
 
 
@@ -2243,6 +2309,7 @@ def quotation_new():
 
         subtotal = 0.0
         new_products_added = []
+        quote_label_map = catalog_label_map()
 
         for desc, qty, price in zip(
             descriptions,
@@ -2266,7 +2333,9 @@ def quotation_new():
                     )
                 )
 
-                existing = (
+                # Picker labels like "Can Sealer — Manual" resolve to the real product, so they
+                # never create a stray product of their own.
+                existing = quote_label_map.get(name.lower()) or (
                     Product.query
                     .filter(
                         Product.name.ilike(name)
@@ -2274,7 +2343,12 @@ def quotation_new():
                     .first()
                 )
 
-                if existing and p > 0 and not existing.unit_price_usd:
+                if (
+                    existing
+                    and p > 0
+                    and not existing.unit_price_usd
+                    and existing.name.lower() == name.lower()
+                ):
                     # Catalog item has no price yet — learn it from this quote.
                     existing.unit_price_usd = p
 
@@ -2289,6 +2363,8 @@ def quotation_new():
                             category="General",
                             quantity=0,
                             unit_price_usd=p,
+                            # Created from a quotation: quote-only until staff switch China ordering on.
+                            china_orderable=False,
                         )
                     )
 
@@ -2308,6 +2384,26 @@ def quotation_new():
             )
             or 0
         )
+
+        discount_lines, credited_fee, discount_error = read_discount_inputs(
+            subtotal + quote.service_fee_usd + quote.shipping_estimate_usd
+        )
+        if discount_error:
+            db.session.rollback()
+            flash(discount_error, "error")
+            return redirect(url_for("admin.quotation_new"))
+
+        for description, amount in discount_lines:
+            db.session.add(
+                QuotationItem(
+                    quotation_id=quote.id,
+                    description=description,
+                    quantity=1,
+                    unit_price_usd=amount,
+                )
+            )
+        if credited_fee:
+            credited_fee.quotation_id = quote.id  # held for this quote; moves to the sale on conversion
 
         if sourcing_request_id:
             src_req = (
@@ -2430,6 +2526,7 @@ def quotation_new():
         customers=customers,
         catalog_items=catalog_items,
         catalog_prices=catalog_price_map(),
+        open_fees=open_commitment_fees(),
         prefill=prefill,
     )
 
@@ -2723,6 +2820,18 @@ def reports():
         .scalar()
     )
 
+    fee_income = (
+        db.session.query(
+            func.coalesce(func.sum(CommitmentFee.amount_usd), 0)
+        )
+        .filter(
+            CommitmentFee.received_date >= start,
+            CommitmentFee.received_date <= end,
+        )
+        .scalar()
+    )
+    revenue = round(revenue + fee_income, 2)
+
     expenses = (
         db.session.query(
             func.coalesce(
@@ -2813,6 +2922,7 @@ def reports():
         end=end,
 
         revenue=revenue,
+        fee_income=fee_income,
         expenses=expenses,
         payroll_paid=payroll_paid,
         profit=profit,
@@ -2824,6 +2934,82 @@ def reports():
 
         float_balance=float_balance,
     )
+
+
+# ---------- Commitment fees ----------
+
+@admin_bp.route("/commitment-fees", methods=["GET", "POST"])
+@login_required
+@staff_required
+def commitment_fees():
+    """Up-front fees paid to start sourcing (no receipt issued). Counted as revenue when
+    received; credited against the client's total if they go on to order."""
+    if request.method == "POST":
+        try:
+            amount = round(float(request.form.get("amount_usd") or 0), 2)
+        except ValueError:
+            amount = 0
+        if amount <= 0:
+            flash("Enter the amount received.", "error")
+            return redirect(url_for("admin.commitment_fees"))
+
+        customer_id = request.form.get("customer_id") or None
+        payer = request.form.get("payer_name", "").strip()
+        if not customer_id and not payer:
+            flash("Choose a customer or type the payer's name.", "error")
+            return redirect(url_for("admin.commitment_fees"))
+
+        db.session.add(CommitmentFee(
+            customer_id=int(customer_id) if customer_id else None,
+            payer_name=payer or None,
+            amount_usd=amount,
+            method=request.form.get("method", "cash"),
+            received_date=(
+                datetime.strptime(request.form.get("received_date"), "%Y-%m-%d").date()
+                if request.form.get("received_date") else date.today()
+            ),
+            note=request.form.get("note", "").strip() or None,
+        ))
+        db.session.commit()
+        flash("Commitment fee recorded — it now counts as revenue" + (" and in the float." if request.form.get("method", "cash") == "cash" else "."), "success")
+        return redirect(url_for("admin.commitment_fees"))
+
+    fees = CommitmentFee.query.order_by(CommitmentFee.received_date.desc(), CommitmentFee.id.desc()).all()
+    return render_template(
+        "admin/commitment_fees.html",
+        fees=fees,
+        customers=Customer.query.order_by(Customer.name).all(),
+        total=round(sum(f.amount_usd for f in fees), 2),
+        open_total=round(sum(f.amount_usd for f in fees if f.status == "open"), 2),
+    )
+
+
+@admin_bp.route("/commitment-fees/<int:fee_id>/release", methods=["POST"])
+@login_required
+@staff_required
+def commitment_fee_release(fee_id):
+    """Un-reserve a fee held on a quotation (e.g. the quote fell through) so it can be used again."""
+    fee = CommitmentFee.query.get_or_404(fee_id)
+    if fee.status == "reserved":
+        fee.quotation_id = None
+        db.session.commit()
+        flash("Fee released — it can be credited to another quotation or sale.", "success")
+    return redirect(url_for("admin.commitment_fees"))
+
+
+@admin_bp.route("/commitment-fees/<int:fee_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def commitment_fee_delete(fee_id):
+    """Remove a fee entered by mistake. Only possible while it hasn't been used."""
+    fee = CommitmentFee.query.get_or_404(fee_id)
+    if fee.status == "open":
+        db.session.delete(fee)
+        db.session.commit()
+        flash("Commitment fee deleted.", "success")
+    else:
+        flash("This fee is already attached to a quotation or sale and can't be deleted.", "error")
+    return redirect(url_for("admin.commitment_fees"))
 
 
 # ---------- Float / cash ledger ----------
@@ -2925,6 +3111,15 @@ def float_ledger():
                     f"(Sale #{r.sale_id})"
                 ),
                 "amount": r.amount,
+            }
+        )
+
+    for fee in CommitmentFee.query.filter_by(method="cash").all():
+        ledger.append(
+            {
+                "date": fee.received_date,
+                "desc": f"Commitment fee — {fee.display_payer}",
+                "amount": fee.amount_usd,
             }
         )
 
