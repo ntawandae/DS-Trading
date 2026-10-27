@@ -22,6 +22,7 @@
   <div class="stat-card">
     <div class="label">Revenue Received</div>
     <div class="value">${{ "%.2f"|format(revenue) }}</div>
+    {% if fee_income %}<div class="muted" style="font-size:11px; margin-top:2px;">incl. ${{ "%.2f"|format(fee_income) }} commitment fees</div>{% endif %}
   </div>
   <div class="stat-card">
     <div class="label">Expenses</div>

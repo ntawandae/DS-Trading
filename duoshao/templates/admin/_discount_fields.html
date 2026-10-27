@@ -1,0 +1,26 @@
+{# Shared by New Sale and New Quotation. Needs: open_fees. #}
+<div class="card-block" style="margin-bottom:18px;">
+  <h3 style="margin-bottom:12px;">Commitment fee &amp; discount</h3>
+
+  {% if open_fees %}
+  <div class="form-group">
+    <label>Commitment fee already paid — credit it against this total</label>
+    <select name="commitment_fee_id">
+      <option value="">— none —</option>
+      {% for f in open_fees %}
+      <option value="{{ f.id }}">{{ f.display_payer }} — ${{ "%.2f"|format(f.amount_usd) }} — paid {{ f.received_date.strftime('%d %b %Y') }}</option>
+      {% endfor %}
+    </select>
+    <p class="muted" style="margin-top:4px; font-size:12px;">Deducted from the total as its own line. The fee has already been counted as revenue, so it isn't counted twice.</p>
+  </div>
+  {% else %}
+  <p class="muted" style="margin-bottom:10px;">No unused commitment fees. Record one under <a href="{{ url_for('admin.commitment_fees') }}">Commitment Fees</a> when a client pays to start sourcing.</p>
+  {% endif %}
+
+  {% if current_user.is_finance %}
+  <div class="form-row">
+    <div class="form-group"><label>Discount (USD)</label><input type="number" step="0.01" min="0" name="discount_usd" placeholder="e.g. 25.00"></div>
+    <div class="form-group" style="flex:2;"><label>Reason (shown on the document)</label><input type="text" name="discount_reason" placeholder="e.g. Repeat customer"></div>
+  </div>
+  {% endif %}
+</div>

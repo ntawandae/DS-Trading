@@ -52,6 +52,8 @@
     <input type="number" step="0.01" name="shipping_estimate_usd" placeholder="e.g. 45.00">
   </div>
 
+  {% include "admin/_discount_fields.html" %}
+
   <div class="form-group">
     <label>Notes</label>
     <div style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:6px;">
@@ -63,10 +65,40 @@
     <textarea id="notes-field" name="notes" placeholder="Click a suggestion above, or type your own terms/notes"></textarea>
   </div>
 
-  <button type="submit" class="btn btn-gold" style="width:100%;">Save Sale</button>
+  <div id="stock-warning" class="flash flash-error" style="display:none; white-space:pre-line; margin-bottom:12px;"></div>
+  <button type="submit" id="saveBtn" class="btn btn-gold" style="width:100%;">Save Sale</button>
 </form>
 
 <script>
+// Staff can't sell more than we hold: warn live and block saving (the server checks again).
+const CATALOG_STOCK = {{ catalog_stock|tojson }};
+function checkStock() {
+  const need = {};
+  document.querySelectorAll('.item-row').forEach(row => {
+    const desc = row.querySelector('input[name="item_description"]').value.trim().toLowerCase();
+    const qty = parseFloat(row.querySelector('input[name="item_quantity"]').value) || 0;
+    const p = CATALOG_STOCK[desc];
+    if (p) {
+      need[p.id] = need[p.id] || { name: p.name, stock: p.stock, qty: 0 };
+      need[p.id].qty += qty;
+    }
+  });
+  const msgs = [];
+  Object.values(need).forEach(n => {
+    if (n.qty > n.stock) {
+      msgs.push(n.stock === 0
+        ? n.name + ': out of stock — create a Quotation to source it.'
+        : n.name + ': only ' + n.stock + ' in stock (you entered ' + n.qty + ').');
+    }
+  });
+  const box = document.getElementById('stock-warning');
+  box.textContent = msgs.join('\n');
+  box.style.display = msgs.length ? 'block' : 'none';
+  document.getElementById('saveBtn').disabled = msgs.length > 0;
+}
+document.addEventListener('input', checkStock);
+document.addEventListener('change', checkStock);
+
 const CATALOG_PRICES = {};
 Object.entries({{ catalog_prices|tojson }}).forEach(([name, price]) => {
   CATALOG_PRICES[name.trim().toLowerCase()] = Number(price) || 0;

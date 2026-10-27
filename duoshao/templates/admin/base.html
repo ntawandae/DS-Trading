@@ -90,6 +90,9 @@
       <a href="{{ url_for('admin.expenses') }}" class="{{ 'active' if request.endpoint == 'admin.expenses' }}" title="Payments &amp; Expenses">
         <span class="nav-icon">{{ nav_icon('expenses') }}</span><span class="nav-text">Payments &amp; Expenses</span>
       </a>
+      <a href="{{ url_for('admin.commitment_fees') }}" class="{{ 'active' if request.endpoint == 'admin.commitment_fees' }}" title="Commitment Fees">
+        <span class="nav-icon">{{ nav_icon('receipts') }}</span><span class="nav-text">Commitment Fees</span>
+      </a>
       <a href="{{ url_for('admin.float_ledger') }}" class="{{ 'active' if request.endpoint == 'admin.float_ledger' }}" title="Float / Cash">
         <span class="nav-icon">{{ nav_icon('float') }}</span><span class="nav-text">Float / Cash</span>
       </a>
