@@ -1,4 +1,5 @@
 import math
+from urllib.parse import urlparse
 import random
 import secrets
 import time
@@ -6,7 +7,7 @@ import time
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, session
 from flask_login import current_user
 from sqlalchemy import func
-from ..models import db, Product, SaleItem, SourcingRequest
+from ..models import db, Product, SaleItem, SourcingRequest, ExchangeRate
 from ..notify import notify_staff
 
 public_bp = Blueprint("public", __name__)
@@ -70,13 +71,43 @@ def _discovery_order(products):
     return ordered
 
 
+AVAILABILITY_FILTERS = ("in_stock", "zambia", "zimbabwe", "china")
+
+
+def _in_stock_clause():
+    return Product.quantity > 0
+
+
+def _availability_clause(availability):
+    """SQL condition for a catalog availability filter. Zambia/Zimbabwe = in stock at that location;
+    China = nothing in local stock (ordered from China)."""
+    if availability == "in_stock":
+        return _in_stock_clause()
+    if availability in ("zambia", "zimbabwe"):
+        return db.and_(_in_stock_clause(), func.lower(Product.location) == availability)
+    if availability == "china":
+        return db.or_(Product.quantity <= 0, Product.quantity.is_(None))
+    return None
+
+
 @public_bp.route("/")
 def home():
     query = request.args.get("q", "").strip()
     active_category = request.args.get("category", "").strip()
+    availability = request.args.get("availability", "").strip().lower()
+    if availability not in AVAILABILITY_FILTERS:
+        availability = ""
 
     all_active = Product.query.filter_by(active=True).all()
     categories = sorted(set(i.category for i in all_active if i.category))
+
+    # Counts for the filter pills (hide a location pill when nothing is stocked there).
+    availability_counts = {
+        "in_stock": sum(1 for i in all_active if (i.quantity or 0) > 0),
+        "zambia": sum(1 for i in all_active if (i.quantity or 0) > 0 and (i.location or "").lower() == "zambia"),
+        "zimbabwe": sum(1 for i in all_active if (i.quantity or 0) > 0 and (i.location or "").lower() == "zimbabwe"),
+        "china": sum(1 for i in all_active if (i.quantity or 0) <= 0),
+    }
 
     items_q = Product.query.filter_by(active=True)
     if query:
@@ -84,14 +115,17 @@ def home():
         items_q = items_q.filter(db.or_(Product.name.ilike(like), Product.description.ilike(like)))
     if active_category:
         items_q = items_q.filter(Product.category == active_category)
+    clause = _availability_clause(availability)
+    if clause is not None:
+        items_q = items_q.filter(clause)
     items = items_q.all()
 
     if query:
         # Searching: most popular matches first, then A–Z.
         weights = _popularity_weights(items)
         items.sort(key=lambda p: (-weights[p.id], p.name.lower()))
-    elif active_category:
-        # One category: shuffle (popular favoured) so the same items aren't always on top.
+    elif active_category or availability:
+        # A filtered view: shuffle (popular favoured) so the same items aren't always on top.
         rng = random.Random(f"{session.setdefault('shuffle_seed', secrets.token_hex(6))}:"
                             f"{int(time.time() // SHUFFLE_WINDOW_SECONDS)}")
         items = _weighted_shuffle(items, _popularity_weights(items), rng)
@@ -104,8 +138,24 @@ def home():
         categories=categories,
         query=query,
         active_category=active_category,
+        availability=availability,
+        availability_counts=availability_counts,
         category_filtering=True,
     )
+
+
+@public_bp.route("/currency/<code>")
+def set_currency(code):
+    """Choose the display currency for this visitor (prices are always charged in USD)."""
+    code = code.upper()
+    valid = {c.code for c in ExchangeRate.query.filter(ExchangeRate.active.is_(True), ExchangeRate.rate_per_usd > 0).all()}
+    session["currency"] = code if code in valid else "USD"
+
+    # Go back where they were, but only if it's this site.
+    ref = request.referrer
+    if ref and urlparse(ref).netloc == request.host:
+        return redirect(ref)
+    return redirect(url_for("public.home"))
 
 
 def _looks_like_bot(user_agent):
