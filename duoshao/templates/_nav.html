@@ -24,6 +24,12 @@
       <a href="{{ url_for('account.register') }}">Client Sign Up</a>
       <a href="{{ url_for('auth.login') }}">Login</a>
       {% endif %}
+      {% if active_currencies %}
+      <span class="currency-switch" title="Display currency — payments are always charged in USD">
+        <a href="{{ url_for('public.set_currency', code='USD') }}" class="{{ 'active' if not current_currency }}">USD</a>
+        {% for c in active_currencies %}<a href="{{ url_for('public.set_currency', code=c.code) }}" class="{{ 'active' if current_currency and current_currency.code == c.code }}">{{ c.code }}</a>{% endfor %}
+      </span>
+      {% endif %}
     </div>
   </div>
 </nav>

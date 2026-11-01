@@ -1,17 +1,43 @@
 {# Expects: items, categories, query, search_url — set `search_url` with
    {% set search_url = url_for('...') %} right before including this file. #}
 
-<form method="GET" action="{{ search_url }}" style="margin-bottom:20px; display:flex; gap:8px; max-width:420px;">
-  <input type="text" name="q" value="{{ query }}" placeholder="Search the catalog..." style="flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:4px; font-family:Arial,sans-serif;">
+{# Builds a catalog URL that keeps the other active filters. #}
+{% macro href(base, q, cat, av) -%}
+  {%- set params = {} -%}
+  {%- if q %}{% set _ = params.update({'q': q}) %}{% endif -%}
+  {%- if cat %}{% set _ = params.update({'category': cat}) %}{% endif -%}
+  {%- if av %}{% set _ = params.update({'availability': av}) %}{% endif -%}
+  {{ base }}{% if params %}?{{ params|urlencode }}{% endif %}
+{%- endmacro %}
+
+<form method="GET" action="{{ search_url }}" class="catalog-search">
+  <input type="search" name="q" value="{{ query }}" placeholder="Search the catalog...">
+  {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+  {% if availability %}<input type="hidden" name="availability" value="{{ availability }}">{% endif %}
   <button type="submit" class="btn btn-navy">Search</button>
-  {% if query %}<a href="{{ search_url }}" class="btn btn-outline">Clear</a>{% endif %}
+  {% if query %}<a href="{{ href(search_url, '', active_category, availability) }}" class="btn btn-outline">Clear</a>{% endif %}
 </form>
+
+{% if category_filtering %}
+<div class="tabs tabs-availability">
+  <span class="tabs-label">Show</span>
+  <a href="{{ href(search_url, query, active_category, '') }}" class="{{ 'active' if not availability }}">All</a>
+  <a href="{{ href(search_url, query, active_category, 'in_stock') }}" class="{{ 'active' if availability == 'in_stock' }}">In Stock{% if availability_counts %} ({{ availability_counts.in_stock }}){% endif %}</a>
+  {% if availability_counts and availability_counts.zambia or availability == 'zambia' %}
+  <a href="{{ href(search_url, query, active_category, 'zambia') }}" class="{{ 'active' if availability == 'zambia' }}">Zambia ({{ availability_counts.zambia }})</a>
+  {% endif %}
+  {% if availability_counts and availability_counts.zimbabwe or availability == 'zimbabwe' %}
+  <a href="{{ href(search_url, query, active_category, 'zimbabwe') }}" class="{{ 'active' if availability == 'zimbabwe' }}">Zimbabwe ({{ availability_counts.zimbabwe }})</a>
+  {% endif %}
+  <a href="{{ href(search_url, query, active_category, 'china') }}" class="{{ 'active' if availability == 'china' }}">From China{% if availability_counts %} ({{ availability_counts.china }}){% endif %}</a>
+</div>
+{% endif %}
 
 <div class="tabs">
   {% if category_filtering %}
-  <a href="{{ search_url }}" class="{{ 'active' if not query and not active_category }}">All</a>
+  <a href="{{ href(search_url, query, '', availability) }}" class="{{ 'active' if not active_category }}">All categories</a>
   {% for cat in categories %}
-    <a href="{{ search_url }}?category={{ cat|urlencode }}" class="{{ 'active' if active_category == cat }}">{{ cat }}</a>
+    <a href="{{ href(search_url, query, cat, availability) }}" class="{{ 'active' if active_category == cat }}">{{ cat }}</a>
   {% endfor %}
   {% else %}
   <a href="{{ search_url }}" class="{{ 'active' if not query }}">All</a>
@@ -20,6 +46,10 @@
   {% endfor %}
   {% endif %}
 </div>
+
+{% if current_currency %}
+<p class="currency-note">Prices are shown in {{ current_currency.name or current_currency.code }} for reference only (1 USD = {{ current_currency.symbol }}{{ '%g'|format(current_currency.rate_per_usd) }}). All payments are charged in USD.</p>
+{% endif %}
 
 {% if query %}
 <p class="muted" style="margin-bottom:16px;">{{ items|length }} result{{ 's' if items|length != 1 }} for "{{ query }}"</p>
@@ -48,8 +78,8 @@
           <span class="badge badge-china">China</span>
         {% endif %}
       </div>
-      {% if item.display_price %}
-      <div class="product-card-price">{% if item.price_varies %}<span class="price-from">From </span>{% endif %}${{ "%.2f"|format(item.display_price) }}</div>
+      {% if item.display_price and item.can_buy_online %}
+      <div class="product-card-price">{% if item.price_varies %}<span class="price-from">From </span>{% endif %}{{ price(item.display_price) }}</div>
       {% endif %}
     </div>
   </a>
