@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 from supabase import create_client
 
 from ..models import (
+    ExchangeRate,
     CommitmentFee,
     _to_price,
     db,
@@ -40,6 +41,7 @@ from ..models import (
     FULFILLMENT_STAGES,
 )
 from ..permissions import admin_required, finance_required, staff_required
+from ..currency import stale_currencies
 from ..services import (
     catalog_label_map,
     convert_quotation_to_sale,
@@ -327,6 +329,7 @@ def dashboard():
 
     return render_template(
         "admin/dashboard.html",
+        stale_rates=stale_currencies() if current_user.is_finance else [],
         total_revenue=total_revenue,
         commitment_fees_total=commitment_fees_total,
         total_received=total_received,
@@ -2934,6 +2937,78 @@ def reports():
 
         float_balance=float_balance,
     )
+
+
+# ---------- Exchange rates (display-only currencies for the public catalog) ----------
+
+@admin_bp.route("/currency")
+@login_required
+@finance_required
+def currency_settings():
+    return render_template(
+        "admin/currency.html",
+        rates=ExchangeRate.query.order_by(ExchangeRate.code).all(),
+    )
+
+
+@admin_bp.route("/currency/<int:rate_id>", methods=["POST"])
+@login_required
+@finance_required
+def currency_save(rate_id):
+    cur = ExchangeRate.query.get_or_404(rate_id)
+
+    raw_rate = request.form.get("rate_per_usd", "").strip()
+    try:
+        rate = float(raw_rate) if raw_rate else None
+    except ValueError:
+        rate = None
+    if rate is not None and rate <= 0:
+        rate = None
+
+    active = request.form.get("active") == "on"
+    if active and not rate:
+        flash(f"Enter the {cur.code} rate (a number above 0) before turning it on.", "error")
+        return redirect(url_for("admin.currency_settings"))
+
+    try:
+        remind_days = max(1, int(request.form.get("remind_after_days") or 7))
+    except ValueError:
+        remind_days = 7
+
+    cur.rate_per_usd = rate
+    cur.active = active
+    cur.remind_after_days = remind_days
+    # Saving counts as confirming the rate, even if the number didn't change.
+    cur.updated_at = datetime.utcnow()
+    cur.updated_by = current_user.full_name
+    cur.last_reminded_at = None
+    db.session.commit()
+
+    flash(f"{cur.code} saved" + (f": 1 USD = {cur.symbol or ''}{rate:g}." if rate else "."), "success")
+    return redirect(url_for("admin.currency_settings"))
+
+
+@admin_bp.route("/currency/add", methods=["POST"])
+@login_required
+@finance_required
+def currency_add():
+    code = request.form.get("code", "").strip().upper()
+    if len(code) != 3 or not code.isalpha() or code == "USD":
+        flash("Enter a 3-letter currency code, e.g. ZIG or CNY (USD is the base currency).", "error")
+        return redirect(url_for("admin.currency_settings"))
+    if ExchangeRate.query.filter_by(code=code).first():
+        flash(f"{code} already exists.", "error")
+        return redirect(url_for("admin.currency_settings"))
+    db.session.add(ExchangeRate(
+        code=code,
+        name=request.form.get("name", "").strip() or code,
+        symbol=request.form.get("symbol", "").strip() or code + " ",
+        decimals=0,
+        active=False,
+    ))
+    db.session.commit()
+    flash(f"{code} added. Enter its rate and tick “Offer to visitors” to turn it on.", "success")
+    return redirect(url_for("admin.currency_settings"))
 
 
 # ---------- Commitment fees ----------
