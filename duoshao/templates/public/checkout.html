@@ -92,7 +92,7 @@
       {% endfor %}
       <div style="display:flex; justify-content:space-between; padding-top:12px; font-weight:bold; color:var(--navy);">
         <span>Total</span>
-        <span>${{ "%.2f"|format(subtotal) }}</span>
+        <span>${{ "%.2f"|format(subtotal) }}{% if price_ref(subtotal) %}<br><small class="muted">{{ price_ref(subtotal) }} (reference) &middot; charged in USD</small>{% endif %}</span>
       </div>
     </div>
   </div>

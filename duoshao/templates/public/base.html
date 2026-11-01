@@ -41,6 +41,15 @@
   </div>
 </footer>
 
+<script>
+  // Same formatting as the server's price(): lets prices that change in the browser follow the chosen currency.
+  window.CURRENCY = {{ currency_config|tojson }};
+  window.fmtPrice = function (usd) {
+    var c = window.CURRENCY, d = c.decimals;
+    var v = Math.floor(usd * c.rate * Math.pow(10, d) + 0.5) / Math.pow(10, d);
+    return c.symbol + v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  };
+</script>
 <button type="button" id="backToTop" class="back-to-top" aria-label="Back to top" title="Back to top">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"></polyline></svg>
 </button>

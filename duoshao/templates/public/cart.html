@@ -31,7 +31,7 @@
         {% endfor %}
         <tr style="font-weight:bold;">
           <td colspan="3" class="text-right">Subtotal</td>
-          <td colspan="2">${{ "%.2f"|format(subtotal) }}</td>
+          <td colspan="2">${{ "%.2f"|format(subtotal) }}{% if price_ref(subtotal) %}<br><small class="muted">{{ price_ref(subtotal) }} (reference) &middot; charged in USD</small>{% endif %}</td>
         </tr>
       </tbody>
     </table>

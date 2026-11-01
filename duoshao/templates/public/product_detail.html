@@ -41,10 +41,11 @@
         {% endif %}
       </div>
 
-      {% if item.is_priced %}
+      {% if item.can_buy_online %}
       {% set first_variant = item.variant_choices[0] if item.variant_choices else '' %}
       {% set first_price = item.price_for_variant(first_variant, item.default_method) %}
-      <div class="product-detail-price" id="productPrice" data-air="{{ '%.2f'|format(item.price_for_variant(None, 'air')) }}" data-sea="{{ '%.2f'|format(item.price_for_variant(None, 'sea')) }}">{% if first_price %}${{ "%.2f"|format(first_price) }}{% else %}From ${{ "%.2f"|format(item.display_price) }}{% endif %}</div>
+      <div class="product-detail-price" id="productPrice" data-air="{{ '%.2f'|format(item.price_for_variant(None, 'air')) }}" data-sea="{{ '%.2f'|format(item.price_for_variant(None, 'sea')) }}">{% if first_price %}{{ price(first_price) }}{% else %}From {{ price(item.display_price) }}{% endif %}</div>
+      {% if current_currency %}<div class="currency-note" style="margin-top:-6px;">Reference price in {{ current_currency.code }} (1 USD = {{ current_currency.symbol }}{{ '%g'|format(current_currency.rate_per_usd) }}). You'll be charged in USD: <strong id="priceUsd">${{ "%.2f"|format(first_price or item.display_price) }}</strong></div>{% endif %}
       {% endif %}
 
       <div class="product-detail-desc">
@@ -55,7 +56,11 @@
         {% endif %}
       </div>
 
-      {% if item.availability != 'in_stock' %}
+      {% if item.availability != 'in_stock' and not item.can_order_from_china %}
+      <div class="china-note">
+        <strong>Out of stock.</strong> Request a quote and we'll confirm the price, availability and delivery time for you.
+      </div>
+      {% elif item.availability != 'in_stock' %}
       <div class="china-note">
         {% set mode = item.effective_shipping_mode %}
         <strong>Ordered from China.</strong>
@@ -66,7 +71,7 @@
       </div>
       {% endif %}
 
-      {% if item.is_priced %}
+      {% if item.can_buy_online %}
       <form method="POST" action="{{ url_for('cart.add_to_cart') }}">
         <input type="hidden" name="item_id" value="{{ item.id }}">
 
@@ -92,7 +97,7 @@
             {% set vp = item.price_for_variant(v.name, item.default_method) %}
             <label class="variant-pill">
               <input type="radio" name="variant" value="{{ v.name }}" data-air="{{ '%.2f'|format(item.price_for_variant(v.name, 'air')) }}" data-sea="{{ '%.2f'|format(item.price_for_variant(v.name, 'sea')) }}" {{ 'checked' if loop.first }}>
-              <span>{{ v.name }}<span class="vp-price">{% if item.price_varies and vp %} &middot; ${{ "%.2f"|format(vp) }}{% endif %}</span></span>
+              <span>{{ v.name }}<span class="vp-price">{% if item.price_varies and vp %} &middot; {{ price(vp) }}{% endif %}</span></span>
             </label>
             {% endfor %}
           </div>
@@ -102,6 +107,7 @@
         <div class="qty-row">
           <label for="qty" class="variant-label">Quantity</label>
           <input type="number" id="qty" name="qty" value="1" min="1"{% if item.availability == 'in_stock' %} max="{{ item.quantity }}"{% endif %}>
+          {% if item.availability == 'in_stock' %}<span class="muted" style="font-size:12px; margin-left:8px;">{{ item.quantity }} in stock</span>{% endif %}
         </div>
 
         {% if item.availability == 'in_stock' %}
@@ -109,6 +115,7 @@
           <button type="submit" name="action" value="add" class="btn btn-outline" style="flex:1;">Add to Cart</button>
           <button type="submit" name="action" value="buy_now" class="btn btn-gold" style="flex:1;">Buy Now</button>
         </div>
+        <a href="{{ url_for('public.sourcing_request') }}?product={{ item.name|urlencode }}" class="btn btn-navy" style="display:block; width:100%; text-align:center; margin-top:10px; box-sizing:border-box;">Request Quote</a>
         {% else %}
         <div style="display:flex; gap:10px; margin-top:18px;">
           <button type="submit" name="action" value="add" class="btn btn-outline" style="flex:1;">Add to Cart</button>
@@ -150,12 +157,14 @@
       variantRadios.forEach(function (v) {
         var span = v.parentNode.querySelector('.vp-price');
         var p = priceOf(v);
-        if (span) span.textContent = (showPillPrices && p > 0) ? ' \u00b7 $' + p.toFixed(2) : '';
+        if (span) span.textContent = (showPillPrices && p > 0) ? ' \u00b7 ' + fmtPrice(p) : '';
       });
     } else {
       price = priceOf(priceEl);
     }
-    priceEl.textContent = price > 0 ? '$' + price.toFixed(2) : 'Quote required';
+    priceEl.textContent = price > 0 ? fmtPrice(price) : 'Quote required';
+    var usdEl = document.getElementById('priceUsd');
+    if (usdEl) usdEl.textContent = '$' + price.toFixed(2);
     buttons.forEach(function (b) { b.disabled = price <= 0; });
   }
 
