@@ -6,6 +6,13 @@
   <span class="user-chip">{{ recent_sales|length }} recent sales</span>
 </div>
 
+{% for r in stale_rates %}
+<div class="flash flash-error">
+  The {{ r.code }} exchange rate (1 USD = {{ r.symbol }}{{ '%g'|format(r.rate_per_usd) }}) {% if r.updated_at %}was last updated {{ r.days_since_update }} day{{ 's' if r.days_since_update != 1 }} ago{% else %}has never been confirmed{% endif %}.
+  Clients choosing {{ r.code }} see prices based on it. <a href="{{ url_for('admin.currency_settings') }}"><strong>Update it now →</strong></a>
+</div>
+{% endfor %}
+
 {% if current_user.is_finance %}
 <div class="stat-grid">
   <div class="stat-card">

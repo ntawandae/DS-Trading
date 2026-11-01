@@ -90,6 +90,11 @@
       <a href="{{ url_for('admin.expenses') }}" class="{{ 'active' if request.endpoint == 'admin.expenses' }}" title="Payments &amp; Expenses">
         <span class="nav-icon">{{ nav_icon('expenses') }}</span><span class="nav-text">Payments &amp; Expenses</span>
       </a>
+      {% if current_user.is_finance %}
+      <a href="{{ url_for('admin.currency_settings') }}" class="{{ 'active' if request.endpoint == 'admin.currency_settings' }}" title="Exchange Rates">
+        <span class="nav-icon">{{ nav_icon('expenses') }}</span><span class="nav-text">Exchange Rates</span>
+      </a>
+      {% endif %}
       <a href="{{ url_for('admin.commitment_fees') }}" class="{{ 'active' if request.endpoint == 'admin.commitment_fees' }}" title="Commitment Fees">
         <span class="nav-icon">{{ nav_icon('receipts') }}</span><span class="nav-text">Commitment Fees</span>
       </a>

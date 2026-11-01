@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% block title %}Exchange Rates — Duoshao Admin{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Exchange Rates</h1></div>
+
+<p class="muted" style="max-width:680px; margin-bottom:20px;">
+  Everything is priced and <strong>charged in USD</strong>. A currency you switch on here appears as a small switch in the catalog menu;
+  visitors who pick it see prices converted at your rate, rounded to whole units, <strong>for reference only</strong>.
+  Orders, receipts, quotations and reports always stay in USD.
+</p>
+
+{% for r in rates %}
+<div class="card-block" style="max-width:680px; margin-bottom:16px;">
+  <h3 style="margin-bottom:4px;">{{ r.name or r.code }} ({{ r.code }})</h3>
+  <p class="muted" style="margin-bottom:14px; font-size:12px;">
+    {% if r.updated_at %}Last confirmed {{ r.updated_at.strftime('%d %b %Y') }}{% if r.updated_by %} by {{ r.updated_by }}{% endif %} ({{ r.days_since_update }} day{{ 's' if r.days_since_update != 1 }} ago){% else %}Rate not set yet{% endif %}
+    {% if r.usable %}&middot; <strong style="color:var(--success);">Showing to visitors</strong>{% else %}&middot; Not shown to visitors{% endif %}
+  </p>
+  <form method="POST" action="{{ url_for('admin.currency_save', rate_id=r.id) }}">
+    <div class="form-row">
+      <div class="form-group"><label>1 USD =</label>
+        <input type="number" step="0.0001" min="0" name="rate_per_usd" value="{{ r.rate_per_usd if r.rate_per_usd else '' }}" placeholder="e.g. 27.50"></div>
+      <div class="form-group"><label>Remind me after (days)</label>
+        <input type="number" min="1" name="remind_after_days" value="{{ r.remind_after_days or 7 }}"></div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:14px;">
+        <input type="checkbox" name="active" {{ 'checked' if r.active }} style="width:auto;"> Offer to visitors
+      </label>
+    </div>
+    <button type="submit" class="btn btn-gold">Save &amp; confirm rate</button>
+    <p class="muted" style="margin-top:8px; font-size:12px;">Saving counts as confirming the rate, even if the number hasn't changed. If it's older than the reminder window, admin and finance get an email once a day until it's confirmed.</p>
+  </form>
+</div>
+{% endfor %}
+
+<div class="card-block" style="max-width:680px;">
+  <h3 style="margin-bottom:10px;">Add another currency</h3>
+  <form method="POST" action="{{ url_for('admin.currency_add') }}">
+    <div class="form-row">
+      <div class="form-group"><label>Code</label><input type="text" name="code" maxlength="3" placeholder="e.g. ZIG" required></div>
+      <div class="form-group"><label>Name</label><input type="text" name="name" placeholder="e.g. Zimbabwe Gold"></div>
+      <div class="form-group"><label>Symbol</label><input type="text" name="symbol" maxlength="8" placeholder="e.g. ZiG"></div>
+    </div>
+    <button type="submit" class="btn btn-outline">Add currency</button>
+  </form>
+</div>
+{% endblock %}
