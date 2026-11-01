@@ -6,6 +6,7 @@ from flask_login import LoginManager
 from supabase import create_client
 from .models import db, User, Notification
 from .textfmt import format_description
+from . import currency as currency_utils
 
 # Load environment variables from a .env file in the project root, if present.
 # This is the file to edit for API keys / credentials — no code changes needed.
@@ -174,6 +175,16 @@ def create_app():
         ).get_public_url(path)
 
     app.add_template_filter(format_description, "format_description")
+    app.add_template_global(currency_utils.price, "price")
+    app.add_template_global(currency_utils.price_ref, "price_ref")
+
+    @app.context_processor
+    def inject_currency():
+        return {
+            "active_currencies": currency_utils.active_currencies(),
+            "current_currency": currency_utils.current_currency(),
+            "currency_config": currency_utils.currency_config(),
+        }
 
     @app.template_global()
     def asset_version(static_relpath):
@@ -187,7 +198,7 @@ def create_app():
 
     # Release abandoned/cancelled orders even when nobody opens the admin dashboard.
     # Throttled to at most once a minute per process; the sweep itself is one cheap query.
-    sweep_state = {"last": 0.0}
+    sweep_state = {"last": 0.0, "rates": 0.0}
 
     @app.before_request
     def sweep_stale_orders():
@@ -201,6 +212,10 @@ def create_app():
         try:
             from .services import expire_stale_online_orders
             expire_stale_online_orders()
+            # Exchange-rate reminder emails: checked hourly, sent at most daily per currency.
+            if now - sweep_state["rates"] >= 3600:
+                sweep_state["rates"] = now
+                currency_utils.send_stale_rate_reminders()
         except Exception:
             db.session.rollback()
             app.logger.exception("Stale-order sweep failed")
@@ -209,6 +224,16 @@ def create_app():
     # With DATABASE_URL set on Render, this creates them in Supabase PostgreSQL.
     with app.app_context():
         db.create_all()
+
+        # Offer kwacha out of the box (inactive until an admin enters a rate).
+        try:
+            from .models import ExchangeRate
+            if ExchangeRate.query.count() == 0:
+                db.session.add(ExchangeRate(code="ZMW", name="Zambian Kwacha", symbol="K", decimals=0, active=False))
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("Could not seed default currency")
 
         # create_all() never alters existing tables, so add columns introduced later.
         # Each column is added on its own: one failure (or another worker adding the same column

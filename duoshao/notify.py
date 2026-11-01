@@ -49,3 +49,28 @@ def notify_staff(subject, body):
 
     for addr in recipients:
         send_email(addr, subject, body)
+
+
+def notify_finance(subject, body):
+    """Email admin and finance/HR users (plus STAFF_NOTIFICATION_EMAIL) — for money matters such as
+    a stale exchange rate. Never raises."""
+    if not mail_enabled():
+        return
+
+    recipients = set()
+    staff_default = current_app.config.get("STAFF_NOTIFICATION_EMAIL")
+    if staff_default:
+        for addr in staff_default.split(","):
+            addr = addr.strip()
+            if addr:
+                recipients.add(addr)
+
+    for u in User.query.filter(User.role.in_(["admin", "finance_hr"]), User.email.isnot(None)).all():
+        if u.email:
+            recipients.add(u.email)
+
+    for addr in recipients:
+        try:
+            send_email(addr, subject, body)
+        except Exception:
+            current_app.logger.exception("Could not email %s", addr)

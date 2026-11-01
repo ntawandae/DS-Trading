@@ -1,3 +1,4 @@
+import math
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
@@ -602,6 +603,42 @@ class SaleStatusEvent(db.Model):
     @property
     def status_label(self):
         return dict(FULFILLMENT_STAGES).get(self.status, self.status.replace("_", " ").title())
+
+
+class ExchangeRate(db.Model):
+    """A display-only currency for the public catalog. Prices are always stored and charged in USD;
+    a visitor who picks this currency just sees prices converted at `rate_per_usd` for reference.
+    One row per currency, so more can be added later without code changes."""
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(3), unique=True, nullable=False)  # ZMW
+    name = db.Column(db.String(60))  # Zambian Kwacha
+    symbol = db.Column(db.String(8))  # K
+    rate_per_usd = db.Column(db.Float)  # units of this currency for 1 USD
+    decimals = db.Column(db.Integer, default=0)  # 0 = round to whole units
+    active = db.Column(db.Boolean, default=False)  # offered to visitors
+    remind_after_days = db.Column(db.Integer, default=7)  # email admins if the rate is older than this
+    updated_at = db.Column(db.DateTime)
+    updated_by = db.Column(db.String(120))
+    last_reminded_at = db.Column(db.DateTime)
+
+    @property
+    def usable(self):
+        return bool(self.active and self.rate_per_usd and self.rate_per_usd > 0)
+
+    @property
+    def days_since_update(self):
+        if not self.updated_at:
+            return None
+        return (datetime.utcnow() - self.updated_at).days
+
+    def convert(self, usd):
+        """USD -> this currency, rounded half-up to `decimals` places."""
+        factor = 10 ** (self.decimals or 0)
+        return math.floor(float(usd or 0) * self.rate_per_usd * factor + 0.5) / factor
+
+    def format(self, usd):
+        places = self.decimals or 0
+        return f"{self.symbol or (self.code + ' ')}{self.convert(usd):,.{places}f}"
 
 
 class Notification(db.Model):
